@@ -11,7 +11,7 @@ async def echo(ws):
         print("client disconnected")
 
 async def main():
-    async with websockets.serve(lambda ws, path: echo(ws), "127.0.0.1", 8765):
+    async with websockets.serve(echo, "127.0.0.1", 8765):
         print("ws://127.0.0.1:8765")
         await asyncio.Future()  # run forever
 
