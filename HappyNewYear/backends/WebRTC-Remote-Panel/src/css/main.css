@@ -1,0 +1,17 @@
+.mainContainer{
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+.signalingClientPanel {
+    width: 100%;
+}
+
+.signalingClientPanel .signalingCleintPanel_main .signalingCleintPanel_function{
+    display: none;
+}
+.signalingClientPanel .signalingCleintPanel_main .signalingCleintPanel_display {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+}
