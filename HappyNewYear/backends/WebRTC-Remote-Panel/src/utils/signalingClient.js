@@ -20,6 +20,7 @@ class SignalingClient {
         };
         this.webSocket.onmessage = (message) => {
             var messageObj = JSON.parse(message.data);
+            // console.log(messageObj);
             // Call message handler and bind passed react handlers
             this.onWebSocketMessageReceived(messageObj);
 

@@ -148,12 +148,16 @@ function SignalingClientPanel(props) {
 
 						// Returns a React component to be rendered
 						return (
-							<div
-								primary="Start"
-								onClick={() =>
-									webRTCConnection.onCallStart(address, properties)
-								}
-							>Start</div>
+							<div>
+								<div>{address}</div>
+								{/* <div>{properties}</div> */}
+								<div
+									primary="Start"
+									onClick={() =>
+										webRTCConnection.onCallStart(address, properties)
+									}
+								>Start</div>
+							</div>
 						);
 					})
 				}
