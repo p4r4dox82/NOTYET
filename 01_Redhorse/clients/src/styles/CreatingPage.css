@@ -3,207 +3,84 @@
   position: relative;
   width: 100%;
   height: 100vh;
-  background: white;
-  overflow: hidden;
-}
+  .create_container {
+    position: relative;
+    backdrop-filter: blur(10px);
+    margin-top: 45px;
+    width: calc(813/1300*100%);
+    aspect-ratio: calc(1033/798);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.40);
 
-/* Background Image */
-.creating-bg-image {
-  position: absolute;
-  top: -1114px;
-  left: 0;
-  width: 1920px;
-  height: 2879px;
-  pointer-events: none;
-}
+    display: flex;
+    padding-left: 40px;
+    padding-right: 40px;
+    padding-top: 56px;
+    padding-bottom: 56px;
+    gap: 47px;
+    justify-content: space-between;
+    .draw_container { 
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      .draw_box {
+        width: 100%;
+        aspect-ratio: calc(447/438);
+        border: 1px solid #FFF;
+        background: #000;
+      }
+      .make_btn {
+        color: #000;
+        font-family: "Arial Black";
+        font-size: 28px;
+        font-style: normal;
+        font-weight: 900;
+        line-height: 120%; /* 33.6px */
+        letter-spacing: -4.48px;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: color 0.3s ease, text-shadow 0.3s ease;
+        animation: blink 1s infinite;
+      }
+      .make_btn:hover {
+        color: #ffffff; /* Point color - 빨간색 */
+        /* text-shadow: 0 0 10px rgba(255, 0, 0, 0.3); */
+      }
 
-.creating-bg-image img {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  max-width: none;
-}
+      .make_btn.hovered {
+        color: #ffffff;
+      }
 
-.creating-bg-image img:first-child {
-  top: 0;
-  left: 0;
-}
+      .make_btn:hover {
+        animation: none;
+        color: #ffffff;
+      }
+    }
+    .horseshoe_image {
+      flex: 1;
+      aspect-ratio: 91/136;
+      border-radius: 16px;
+      background: url(<path-to-image>) lightgray -0.139px 0px / 100.06% 100.7% no-repeat;
+      img {
+        width: 100%;
+      }
+    }
+  }
+  
 
-.creating-bg-image img:last-child {
-  top: 0;
-  left: 0;
-}
-
-/* Blur Card */
-.creating-blur-card {
-  position: absolute;
-  top: 193px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 1033px;
-  height: 798px;
-  background: rgba(255, 255, 255, 0.4);
-  border-radius: 8px;
-  backdrop-filter: blur(10px);
-}
-
-/* Screenshot */
-.creating-screenshot {
-  position: absolute;
-  top: 249px;
-  left: 978px;
-  width: 459px;
-  height: 686px;
-  border-radius: 16px;
-  overflow: hidden;
-}
-
-.creating-screenshot img {
-  position: absolute;
-  width: 100.06%;
-  height: 100.7%;
-  top: 0;
-  left: -0.03%;
-  max-width: none;
-  object-fit: cover;
-}
-
-/* Black Drawing Canvas */
-.creating-canvas-black {
-  position: absolute;
-  top: 249px;
-  left: 484px;
-  width: 447px;
-  height: 438px;
-  background: black;
-  border: 1px solid white;
-}
-
-/* Logo 1 */
-.creating-logo-1 {
-  position: absolute;
-  top: 43px;
-  left: 845px;
-  width: 229.88px;
-  height: 74.73px;
-}
-
-.creating-logo-1 img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  max-width: none;
-}
-
-/* Logo 2 */
-.creating-logo-2 {
-  position: absolute;
-  top: 43px;
-  left: 845px;
-  width: 230px;
-  height: 75px;
-}
-
-.creating-logo-2 img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  max-width: none;
-}
-
-/* MAKE Text */
-.creating-make-text {
-  position: absolute;
-  top: 901px;
-  left: 658px;
-  font-family: 'Arial Black', sans-serif;
-  font-size: 28px;
-  font-weight: 400;
-  color: white;
-  text-transform: uppercase;
-  letter-spacing: -4.48px;
-  line-height: 1.2;
-  margin: 0;
-}
-
-/* First, Draw your wish Text */
-.creating-draw-text {
-  position: absolute;
-  top: 699px;
-  left: 484px;
-  font-family: 'Arial', sans-serif;
-  font-size: 24px;
-  color: white;
-  line-height: 1.2;
-  margin: 0;
-}
-
-/* And.... Make your Card Text */
-.creating-card-text {
-  position: absolute;
-  top: 734px;
-  left: 543px;
-  font-family: 'Arial', sans-serif;
-  font-size: 24px;
-  color: white;
-  line-height: 1.2;
-  margin: 0;
-}
-
-/* Note Section */
-.creating-note {
-  position: absolute;
-  top: 118px;
-  left: 444px;
-  font-family: 'Inter', 'Noto Sans KR', sans-serif;
-  font-size: 20px;
-  font-weight: bold;
-  color: red;
-  white-space: nowrap;
-  line-height: 0;
-}
-
-.creating-note p {
-  margin: 0;
-  line-height: normal;
-}
-
-.creating-note ul {
-  margin: 0;
-  padding-left: 30px;
-  list-style: disc;
-  line-height: normal;
-}
-
-.creating-note li {
-  display: list-item;
-  white-space: normal;
-}
-
-/* Responsive */
-@media (max-width: 1024px) {
-  .creating-page-container {
-    height: auto;
-    aspect-ratio: 16 / 9;
+  @media (min-width: 1300px) {
+    .create_container {
+      width: 813px;
+      aspect-ratio: calc(1033/798);
+    }
   }
 
-  .creating-blur-card {
-    width: 80%;
-    height: auto;
-  }
-
-  .creating-canvas-black {
-    width: 40%;
-    height: 200px;
-  }
-
-  .creating-make-text {
-    font-size: 20px;
-  }
-
-  .creating-draw-text,
-  .creating-card-text {
-    font-size: 16px;
+  @media (min-width: 1700px) {
+    .create_container {
+      width: 1033px;
+      aspect-ratio: calc(1033/798);
+    }
   }
 }

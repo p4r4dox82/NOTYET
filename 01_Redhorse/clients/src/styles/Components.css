@@ -1,0 +1,14 @@
+.logo_container {
+    position: relative;
+    width: auto;
+    height: auto;
+    .logo_background {
+        position: relative;
+        z-index: 1;
+    }
+    .logo {
+        position: absolute;
+        padding: 5px;
+        z-index: 2;
+    }
+}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../styles/App.css'
+import '../styles/MainPage.css'
 
 function MainPage() {
   const [isHovered, setIsHovered] = useState(false)
@@ -11,7 +12,7 @@ function MainPage() {
   }
 
   return (
-    <div className="twitter-post-container" data-name="Twitter post - 10" data-node-id="110:22">
+    <div className="main_container" data-name="Twitter post - 10" data-node-id="110:22">
       {/* Background Image */}
       <div className="bg-image" data-name="image 38" data-node-id="129:45">
         <img alt="background" src={"../public/images/main_image.png"} />
@@ -19,14 +20,14 @@ function MainPage() {
 
       {/* Blur Card Background */}
       <div className="blur-card" data-node-id="110:37">
-        <button
+        <div
           className={`create-card-btn ${isHovered ? 'hovered' : ''}`}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           onClick={handleCreateCard}
         >
-          CREATE A CARD
-        </button>
+          <>CREATE A CARD</>
+        </div>
       </div>
     </div>
   )
