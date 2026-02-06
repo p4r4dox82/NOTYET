@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getImageURL } from '../utils/utils'
 import '../styles/App.css'
 import '../styles/MainPage.css'
 
@@ -15,7 +16,7 @@ function MainPage() {
     <div className="main_container" data-name="Twitter post - 10" data-node-id="110:22">
       {/* Background Image */}
       <div className="bg-image" data-name="image 38" data-node-id="129:45">
-        <img alt="background" src={"../public/images/main_image.png"} />
+        <img alt="background" src={getImageURL('main_image.png')} />
       </div>
 
       {/* Blur Card Background */}
