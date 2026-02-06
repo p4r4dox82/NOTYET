@@ -1,4 +1,5 @@
 import Logo from '../components/Logo'
+import { getImageURL } from '../utils/utils'
 import '../styles/App.css'
 import '../styles/CreatingPage.css'
 import '../styles/Components.css'
@@ -16,7 +17,7 @@ function CreatingPage() {
     <div className="creating-page-container" data-name="Twitter post - 9" data-node-id="110:3">
       {/* Background Image */}
       <div className="bg-image" data-name="image 38" data-node-id="129:68">
-        <img alt="background" src={"../public/images/main_image.png"} />
+        <img alt="background" src={getImageURL('main_image.png')} />
       </div>
       {/* Contents */}
       <div className='layout_container'>
@@ -34,7 +35,7 @@ function CreatingPage() {
             </div>
           </div>
           <div className='horseshoe_image'>
-            <img alt="horseshoe" src={"../public/images/horseshoe.png"} />
+            <img alt="horseshoe" src={getImageURL('horseshoe.png')} />
           </div>
         </div>
       </div>
