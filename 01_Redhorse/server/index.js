@@ -8,9 +8,12 @@ const PORT = process.env.PORT || 3001;
 // PostgreSQL 연결 설정
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: {
+    rejectUnauthorized: false,
+    sslmode: 'require'
+  },
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 5000,
 });
 
 pool.on('error', (err) => {
