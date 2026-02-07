@@ -9,10 +9,16 @@ const PORT = process.env.PORT || 3001;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
+});
+
+pool.on('connect', () => {
+  console.log('Database connected successfully');
 });
 
 // Middleware
@@ -38,15 +44,22 @@ app.get('/api/health', (req, res) => {
 // 데이터베이스 연결 테스트
 app.get('/api/db-test', async (req, res) => {
   try {
+    console.log('DATABASE_URL:', process.env.DATABASE_URL ? '설정됨' : '설정 안 됨');
     const result = await pool.query('SELECT NOW()');
     res.json({ 
       status: 'ok', 
       message: 'Database connected',
-      timestamp: result.rows[0].now 
+      timestamp: result.rows[0].now,
+      environment: process.env.NODE_ENV
     });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ status: 'error', message: err.message });
+    console.error('Database error:', err.message);
+    console.error('Connection string:', process.env.DATABASE_URL);
+    res.status(500).json({ 
+      status: 'error', 
+      message: err.message,
+      environment: process.env.NODE_ENV
+    });
   }
 });
 
