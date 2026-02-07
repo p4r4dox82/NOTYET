@@ -1,0 +1,39 @@
+
+/* Responsive */
+/* @media (max-width: 1024px) {
+  .twitter-post-container {
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .create-card-btn {
+    font-size: 20px;
+  }
+
+  .text-rotated:not(.text-small) {
+    font-size: 40px;
+  }
+
+  .text-rotated.text-small {
+    font-size: 16px;
+  }
+} */
+
+#root {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+}
+
+.layout_container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    padding-top: 30px;
+  }
