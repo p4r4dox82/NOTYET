@@ -6,12 +6,12 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // PostgreSQL 연결 설정
+// DigitalOcean의 자체 서명 인증서 문제를 피하기 위해 sslmode를 제거
+const connectionString = process.env.DATABASE_URL?.replace('?sslmode=require', '') || '';
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-    sslmode: 'require'
-  },
+  connectionString,
+  ssl: false, // DigitalOcean에서는 인증서 검증 불필요
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
