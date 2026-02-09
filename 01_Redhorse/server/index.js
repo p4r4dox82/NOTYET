@@ -15,7 +15,7 @@ const connectionString = process.env.DATABASE_URL
 
 // PostgreSQL 연결 설정
 const pool = new Pool({
-  connectionString: connectionString,
+  connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? {
     // 파일 경로 대신, 환경 변수에 담긴 인증서 내용을 직접 넣습니다.
     ca: process.env.CA_CERT, 
