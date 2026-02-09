@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const { Pool } = require('pg');
+const { Pool, Client } = require('pg');
 const multer = require('multer');
 
 const app = express();
@@ -9,9 +9,13 @@ const PORT = process.env.PORT || 3001;
 // Multer 설정 (메모리에 저장)
 const upload = multer({ storage: multer.memoryStorage() });
 
+const connectionString = process.env.DATABASE_URL
+  ? process.env.DATABASE_URL.split('?')[0]
+  : undefined;
+
 // PostgreSQL 연결 설정
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: connectionString,
   ssl: process.env.NODE_ENV === 'production' ? {
     // 파일 경로 대신, 환경 변수에 담긴 인증서 내용을 직접 넣습니다.
     ca: process.env.CA_CERT, 
