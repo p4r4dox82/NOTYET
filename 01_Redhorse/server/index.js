@@ -18,7 +18,7 @@ const pool = new Pool({
   connectionString: connectionString,
   ssl: process.env.NODE_ENV === 'production' ? {
     // 파일 경로 대신, 환경 변수에 담긴 인증서 내용을 직접 넣습니다.
-    // ca: process.env.CA_CERT, 
+    ca: process.env.CA_CERT, 
     
     // 이제 인증서가 있으니 true로 설정해도 됩니다!
     rejectUnauthorized: true, 
