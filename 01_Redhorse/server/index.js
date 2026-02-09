@@ -12,7 +12,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // PostgreSQL 연결 설정
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: false,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
@@ -144,6 +144,6 @@ app.get('/api/images/:id', async (req, res) => {
 });
 
 // 서버 시작
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
 });
