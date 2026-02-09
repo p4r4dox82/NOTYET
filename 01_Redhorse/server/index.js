@@ -21,7 +21,7 @@ const pool = new Pool({
     // ca: process.env.CA_CERT, 
     
     // 이제 인증서가 있으니 true로 설정해도 됩니다!
-    rejectUnauthorized: false, 
+    rejectUnauthorized: true, 
   } : false,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
