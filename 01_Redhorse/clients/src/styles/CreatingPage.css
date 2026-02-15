@@ -1,75 +1,71 @@
 /* Creating Page Container */
-.creating-page-container {
+.create_container {
   position: relative;
-  width: 100%;
-  height: 100vh;
-  .create_container {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 779px;
+  height: 672px;
+  background: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  .draw_container {
     position: relative;
-    backdrop-filter: blur(10px);
-    margin-top: 45px;
-    width: calc(813/1300*100%);
-    aspect-ratio: calc(1033/798);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.40);
-
+    width: 421px;
+    height: 100%;
+    background-color: black;
     display: flex;
-    padding-left: 40px;
-    padding-right: 40px;
-    padding-top: 56px;
-    padding-bottom: 56px;
-    gap: 47px;
-    justify-content: space-between;
-    .draw_container { 
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      align-items: center;
-      .draw_box {
-        width: 100%;
-        aspect-ratio: calc(447/438);
-        border: 1px solid #FFF;
-        background: #000;
-      }
-      .make_btn {
-        color: #000;
-        font-family: "Arial Black";
-        font-size: 28px;
-        font-style: normal;
-        font-weight: 900;
-        line-height: 120%; /* 33.6px */
-        letter-spacing: -4.48px;
-        text-transform: uppercase;
-        cursor: pointer;
-        transition: color 0.3s ease, text-shadow 0.3s ease;
-        animation: blink 1s infinite;
-      }
-      .make_btn:hover {
-        color: #ffffff; /* Point color - 빨간색 */
-        /* text-shadow: 0 0 10px rgba(255, 0, 0, 0.3); */
-      }
-
-      .make_btn.hovered {
-        color: #ffffff;
-      }
-
-      .make_btn:hover {
-        animation: none;
-        color: #ffffff;
-      }
-    }
-    .horseshoe_image {
-      flex: 1;
-      aspect-ratio: 91/136;
-      border-radius: 16px;
-      background: url(<path-to-image>) lightgray -0.139px 0px / 100.06% 100.7% no-repeat;
-      img {
-        width: 100%;
-      }
+    justify-content: center;
+    align-items: center;
+    .text {
+      color: #FFF;
+      text-align: center;
+      font-family: Arial;
+      font-size: 28px;
+      font-style: normal;
+      font-weight: 400;
+      line-height: 100%; /* 28px */
+      letter-spacing: -1.4px;
     }
   }
-  
+  .result_container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    .result_box {
+      width: 322px;
+      height: 331px;
+      background-color: black;
+    }
+    .make_btn {
+      color: #000;
+      text-align: right;
+      font-family: "Arial Black";
+      font-size: 28px;
+      font-style: normal;
+      font-weight: 900;
+      line-height: 100%; /* 28px */
+      letter-spacing: -4.48px;
+      text-transform: uppercase;
+    }
+    .make_btn:hover {
+      color: red; /* Point color - 빨간색 */
+      /* text-shadow: 0 0 10px rgba(255, 0, 0, 0.3); */
+    }
 
+    .make_btn.hovered {
+      color: red;
+    }
+
+    .make_btn:hover {
+      animation: none;
+      color: red;
+    }
+  }
+}
+  
+/* 
   @media (min-width: 1300px) {
     .create_container {
       width: 813px;
@@ -82,5 +78,4 @@
       width: 1033px;
       aspect-ratio: calc(1033/798);
     }
-  }
-}
+  } */
