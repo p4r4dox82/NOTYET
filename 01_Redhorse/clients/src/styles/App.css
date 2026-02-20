@@ -1,23 +1,4 @@
-
-/* Responsive */
-/* @media (max-width: 1024px) {
-  .twitter-post-container {
-    height: auto;
-    aspect-ratio: 16 / 9;
-  }
-
-  .create-card-btn {
-    font-size: 20px;
-  }
-
-  .text-rotated:not(.text-small) {
-    font-size: 40px;
-  }
-
-  .text-rotated.text-small {
-    font-size: 16px;
-  }
-} */
+@import url('./Font.css');
 
 #root {
   max-width: 100%;
@@ -54,3 +35,10 @@ img {
   height: 100%;
   object-fit: cover;
 }
+
+input {
+  padding-top: 0px;
+  padding-bottom: 0px;
+  text-align: end;
+}
+input:focus {outline: none;}

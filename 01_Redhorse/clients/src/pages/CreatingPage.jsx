@@ -35,11 +35,16 @@ function CreatingPage() {
             <div className='result_box'>
               <img alt="result" src={getImageURL('horseshoe.png')} />
             </div>  
-            <div className={`make_btn ${isHovered ? 'hovered' : ''}`}
-              onMouseEnter={() => setIsHovered(true)}
-              onMouseLeave={() => setIsHovered(false)}
-              onClick={navigateMakeButton}>
-              <>MADE UP MY WISHES</>
+            <div className='text_container'>
+              <div className='instruction'>
+                We don’t store any of your information.
+              </div>
+              <div className={`make_btn ${isHovered ? 'hovered' : ''}`}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                onClick={navigateMakeButton}>
+                <>MADE UP MY WISHES</>
+              </div>
             </div>
           </div>
         </div>

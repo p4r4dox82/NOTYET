@@ -1,0 +1,23 @@
+/* Poolside Regular */
+@font-face {
+  font-family: 'Poolside';
+  src: url('/fonts/PoolsideRegular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+/* Poolside Italic */
+@font-face {
+  font-family: 'Poolside';
+  src: url('/fonts/PoolsideItalic.otf') format('opentype');
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* Tratatello */
+@font-face {
+  font-family: 'Tratatello';
+  src: url('/fonts/tratatello.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
