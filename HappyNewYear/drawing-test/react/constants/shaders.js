@@ -292,6 +292,27 @@ export const RampShader = {
     
     varying vec2 vUv;
 
+    float inverseCustomSigmoid(float y, float steepness) {
+        // 0으로 나누기나 log(0) 에러를 방지하기 위해 y값을 살짝 제한(Clamp)합니다.
+        float safeY = clamp(y, 0.0001, 0.9999); 
+        
+        return - (1.0 / steepness) * log((1.0 - safeY) / safeY);
+    }
+
+    float scaling(float x) {
+      float gray = x * 0.8; // 0 ~ 1 -> 0.2 ~ 1.0
+
+      float sigGray = inverseCustomSigmoid(gray, 1.0) / 3.1; // (-1, 1)
+
+      float mapGray = (sigGray * 0.5 + 0.5); // (0, 1)
+
+      mapGray = clamp(mapGray, 0.0, 1.0);
+      float expGray = pow(mapGray, 2.8); // (0, 1)
+
+      return expGray;
+    }
+      
+
     void main() {
       vec2 st = vUv - uCenter;
       st.x *= uAspect;
@@ -304,20 +325,20 @@ export const RampShader = {
       
       // t를 2.0으로 나눈 나머지(0.0~2.0)에서 1.0을 빼면 -1.0 ~ 1.0이 됩니다.
       // 거기에 절대값(abs)을 씌우면 1.0 -> 0.0 -> 1.0 으로 완벽하게 왕복하는 값이 나옵니다!
-      float val = abs(mod(t, 2.0) - 1.0);
+      float val = 1.0 - abs(mod(t, 2.0) - 1.0);
 
       // (참고로, Extend가 Repeat(Hold) 일 때는 기존처럼 float val = fract(t); 를 씁니다.)
 
-      float gray = pow(1.0 - val, 1.0);
+      // float gray = pow(1.0 - val, 1.0);
 
-      // float gray = pow(sin((0.5 - val) *PI), 5.0); // 0.0 ~ 1.0
+      float n = scaling(val);
 
-      gl_FragColor = vec4(vec3(gray), 1.0);
+      gl_FragColor = vec4(vec3(n), 1.0);
     }
   `
 };
 
-export const CompShader = {
+export const CompShader_average = {
     uniforms: {
         tDiffuse1: { value: null },
         tDiffuse2: { value: null },
@@ -339,11 +360,41 @@ export const CompShader = {
             vec4 texture2 = texture2D(tDiffuse2, vUv);
             
             // 곱셈 합성
+            vec4 result = mix(texture1, texture2, 0.5); // 0.5는 단순히 두 텍스처의 평균을 내는 가중치입니다.
+            gl_FragColor = result;
+        }
+    `
+};
+
+export const CompShader_multiply = {
+    uniforms: {
+        tDiffuse1: { value: null },
+        tDiffuse2: { value: null },
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse1;
+        uniform sampler2D tDiffuse2;
+        varying vec2 vUv;
+
+        void main() {
+            vec4 texture1 = texture2D(tDiffuse1, vUv);
+            vec4 texture2 = texture2D(tDiffuse2, vUv);
+            
+            // 곱셈(Multiply) 합성: 두 텍스처의 색상을 곱하기
             vec4 result = texture1 * texture2;
             gl_FragColor = result;
         }
     `
 };
+
+
 
 // MultiplyShader - 노이즈와 드로잉 이미지 합성
 export const MultiplyShader = {
@@ -413,6 +464,85 @@ export const MultiplyShader = {
             float dither = (random(gl_FragCoord.xy) - 0.5) / 256.0;
             finalColor.rgb += dither;
             gl_FragColor = vec4(finalColor, 1.0);
+        }
+    `
+};
+
+// BlurShader - 고품질 분리가능한 1D 가우시안 블러
+export const BlurShader = {
+    uniforms: {
+        tDiffuse: { value: null },                                // 원본 이미지 텍스처
+        resolution: { value: new THREE.Vector2(1920.0, 1080.0) }, // 화면 해상도
+        direction: { value: new THREE.Vector2(1.0, 0.0) },        // 가로 블러: vec2(1.0, 0.0), 세로 블러: vec2(0.0, 1.0)
+        filterSize: { value: 24.0 }                              // TD의 Filter Size
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec2 resolution;
+        uniform vec2 direction;
+        uniform float filterSize;
+
+        varying vec2 vUv;
+
+        // 정규분포 가중치 계산
+        float gaussian(float radius, float sigma) {
+            return exp(-(radius * radius) / (2.0 * sigma * sigma));
+        }
+
+        void main() {
+            if (filterSize <= 1.0) {
+                gl_FragColor = texture2D(tDiffuse, vUv);
+                return;
+            }
+
+            vec2 tex_offset = 1.0 / resolution;
+
+            // RGB와 Alpha 분리 누적
+            vec3 resultRGB = vec3(0.0);
+            float resultAlpha = 0.0;
+            float total_weight = 0.0;
+
+            float radius = filterSize / 2.0;
+            float sigma = radius / 3.0;
+
+            // 1D 블러는 훨씬 가벼우므로 MAX_RADIUS를 30.0까지 넉넉하게 줘도 성능 하락이 거의 없습니다.
+            const float MAX_RADIUS = 30.0;
+            float limit = min(radius, MAX_RADIUS);
+
+            // [핵심 변경점] 이중 for문 제거 -> 단일 for문으로 direction 방향만 탐색
+            for (float i = -MAX_RADIUS; i <= MAX_RADIUS; i += 1.0) {
+                if (abs(i) > limit) continue;
+
+                // direction이 (1,0)이면 가로로만, (0,1)이면 세로로만 offset이 발생합니다.
+                vec2 offset = direction * i * tex_offset;
+                
+                // 거리는 단순히 i의 절대값
+                float weight = gaussian(abs(i), sigma);
+
+                // 텍스처 샘플링
+                vec4 texColor = texture2D(tDiffuse, vUv + offset);
+
+                // RGB 가중치
+                resultRGB += texColor.rgb * weight;
+                // Alpha 가중치
+                resultAlpha += texColor.a * weight;
+
+                total_weight += weight;
+            }
+
+            // 최종 가중치로 정규화
+            resultRGB /= total_weight;
+            resultAlpha /= total_weight;
+
+            // Premultiplied Alpha 처리 (배경의 검은색 번짐 방지)
+            gl_FragColor = vec4(resultRGB * resultAlpha, resultAlpha);
         }
     `
 };

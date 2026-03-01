@@ -5,3 +5,12 @@ export {
   loadTexture,
   loadHDRI,
 } from './threeUtils';
+
+export {
+  createShaderScene,
+  createNoiseScene,
+  createRampScene,
+  createBlurScene,
+  createMultiplyScene,
+  createCompScene,
+} from './shaderScenes';

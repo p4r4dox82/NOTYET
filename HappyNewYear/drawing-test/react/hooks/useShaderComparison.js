@@ -1,26 +1,32 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import {
-  NoiseShader,
-  MultiplyShader,
-  RampShader,
-  CompShader,
-} from "../constants/shaders";
+  createNoiseScene,
+  createRampScene,
+  createBlurScene,
+  createCompScene,
+  createCompScene_multiply,
+} from "../utils/shaderScenes";
+import { BlurShader, CompShader_multiply } from "../constants/shaders";
 
 /**
- * 3개의 Shader를 비교하는 커스텀 훅
- * 하나의 canvas에 viewport 분할을 통해 3개 shader를 렌더링
+ * Shader Mode에 따라 다양한 shader 렌더링하는 커스텀 훅
+ * @param {number} shaderMode - 1: Noise, 2: Ramp, 3: CompAverage, 4: Blur, 5: CompMultiply
  */
 export function useShaderComparison(
   containerRef,
   canvasRef,
   overlayCanvasRef,
+  shaderMode = 1,
 ) {
   const rendererRef = useRef(null);
-  const scenesRef = useRef([null, null, null]);
-  const materialsRef = useRef([null, null, null]);
-  const renderTargetsRef = useRef([null, null, null]);
-  const camerasRef = useRef([null, null, null]);
+  const composerRef = useRef(null);
+  const shaderSceneRef = useRef(null);
+  const shaderCameraRef = useRef(null);
+  const materialRef = useRef(null);
   const stateRef = useRef({
     isDrawing: false,
     lastX: 0,
@@ -30,26 +36,22 @@ export function useShaderComparison(
   const handlersRef = useRef({});
   const animationIdRef = useRef(null);
 
-  // --- 공통 Shader Scene/Material 저장 ---
-  const shaderScenesRef = useRef([null, null, null]);
-  const shaderCamerasRef = useRef([null, null, null]);
-  const shaderMaterialsRef = useRef([null, null, null]);
-
-  // --- Clock 저장 (NoiseShader용) ---
+  // --- Clock 저장 (애니메이션용) ---
   const clockRef = useRef(null);
 
   useEffect(() => {
     if (!containerRef?.current || !canvasRef?.current) return;
 
     const LINE_RADIUS = 3;
-    const UI_CANVAS_SIZE = 256;
+    const CANVAS_SIZE = 1024;
+    const SHRINK_FACTOR = 1/8;
 
-    // --- Overlay Canvas 설정 (공용 드로잉 캔버스) ---
+    // --- Overlay Canvas 설정 (드로잉 캔버스) ---
     const overlayCanvas = overlayCanvasRef.current;
     if (!overlayCanvas) return;
 
-    overlayCanvas.width = UI_CANVAS_SIZE;
-    overlayCanvas.height = UI_CANVAS_SIZE;
+    overlayCanvas.width = CANVAS_SIZE;
+    overlayCanvas.height = CANVAS_SIZE;
     const overlayContext = overlayCanvas.getContext("2d");
     overlayContext.fillStyle = "#000000";
     overlayContext.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
@@ -63,202 +65,363 @@ export function useShaderComparison(
     canvas.height = Math.floor(height);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(Math.floor(width), Math.floor(height));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     rendererRef.current = renderer;
 
-    // --- 공통 Shader 생성 (한 번만) ---
-    // Shader 1: NoiseShader
-    {
-      const noiseScene = new THREE.Scene();
-      const noiseCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-      const noiseMaterial = new THREE.ShaderMaterial({
-        uniforms: THREE.UniformsUtils.clone(NoiseShader.uniforms),
-        vertexShader: NoiseShader.vertexShader,
-        fragmentShader: NoiseShader.fragmentShader,
-        side: THREE.DoubleSide,
-      });
-      const noiseGeometry = new THREE.PlaneGeometry(2, 2);
-      const noiseMesh = new THREE.Mesh(noiseGeometry, noiseMaterial);
-      noiseScene.add(noiseMesh);
+    // --- EffectComposer 설정 ---
+    const composer = new EffectComposer(renderer);
+    composerRef.current = composer;
+    composer.setSize(width * SHRINK_FACTOR, height * SHRINK_FACTOR);
 
-      shaderScenesRef.current[0] = noiseScene;
-      shaderCamerasRef.current[0] = noiseCamera;
-      shaderMaterialsRef.current[0] = {
-        material: noiseMaterial,
-        mesh: noiseMesh,
-      };
+    let mainScene, mainCamera, mainMaterial;
+    let noiseScene, rampScene, blurScene;
+
+    // Shader Mode에 따라 다른 setup
+    switch(shaderMode) {
+      case 1: // Noise Shader
+        const noiseSetup = createNoiseScene();
+        mainScene = noiseSetup.scene;
+        mainCamera = noiseSetup.camera;
+        mainMaterial = noiseSetup.material;
+        const renderPass1 = new RenderPass(mainScene, mainCamera);
+        renderPass1.renderToScreen = true;
+        composer.addPass(renderPass1);
+        break;
+
+      case 2: // Ramp Shader
+        const rampSetup = createRampScene();
+        mainScene = rampSetup.scene;
+        mainCamera = rampSetup.camera;
+        mainMaterial = rampSetup.material;
+        const renderPass2 = new RenderPass(mainScene, mainCamera);
+        renderPass2.renderToScreen = true;
+        composer.addPass(renderPass2);
+        break;
+
+      case 3: // CompShader_average (Noise + Ramp 합성)
+        // Noise와 Ramp를 두 개의 RenderTarget으로 렌더링 후 합성
+        noiseScene = createNoiseScene();
+        rampScene = createRampScene();
+        
+        // RenderTarget 설정 개선 (WebGL 에러 방지)
+        const rtConfig3 = {
+          format: THREE.RGBAFormat,
+          type: THREE.UnsignedByteType,
+          minFilter: THREE.LinearFilter,
+          magFilter: THREE.LinearFilter,
+          generateMipmaps: false,
+          depthBuffer: false,
+          stencilBuffer: false
+        };
+        
+        const noiseRT3 = new THREE.WebGLRenderTarget(
+          width * SHRINK_FACTOR,
+          height * SHRINK_FACTOR,
+          rtConfig3
+        );
+        const rampRT3 = new THREE.WebGLRenderTarget(
+          width * SHRINK_FACTOR,
+          height * SHRINK_FACTOR,
+          rtConfig3
+        );
+
+        // Noise 렌더링
+        renderer.setRenderTarget(noiseRT3);
+        renderer.render(noiseScene.scene, noiseScene.camera);
+        
+        // Ramp 렌더링
+        renderer.setRenderTarget(rampRT3);
+        renderer.render(rampScene.scene, rampScene.camera);
+        
+        // CompShader_average 합성 (ShaderMaterial 직접 생성)
+        renderer.setRenderTarget(null);
+        mainCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const compAvgScene3 = new THREE.Scene();
+        const compAvgMaterial3 = new THREE.ShaderMaterial({
+          uniforms: {
+            tDiffuse1: { value: noiseRT3.texture },
+            tDiffuse2: { value: rampRT3.texture },
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform sampler2D tDiffuse1;
+            uniform sampler2D tDiffuse2;
+            varying vec2 vUv;
+
+            void main() {
+              vec4 texture1 = texture2D(tDiffuse1, vUv);
+              vec4 texture2 = texture2D(tDiffuse2, vUv);
+              vec4 result = mix(texture1, texture2, 0.5);
+              gl_FragColor = result;
+            }
+          `
+        });
+        const compAvgMesh3 = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), compAvgMaterial3);
+        compAvgScene3.add(compAvgMesh3);
+        mainScene = compAvgScene3;
+        mainMaterial = compAvgMaterial3;
+        const compAvgPass3 = new RenderPass(compAvgScene3, mainCamera);
+        compAvgPass3.renderToScreen = true;
+        composer.addPass(compAvgPass3);
+        break;
+
+      case 4: // Blur Shader with HorseShoe_fill.png
+        const blurSetup = createBlurScene();
+        mainScene = blurSetup.scene;
+        mainCamera = blurSetup.camera;
+        mainMaterial = blurSetup.material;
+
+        const horseshoeTexture = new THREE.TextureLoader().load(
+          './assets/textures/HorseShoe_fill.png',
+          (tex) => {
+            tex.generateMipmaps = false;
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.needsUpdate = true;
+          },
+          undefined,
+          () => console.error('Failed to load HorseShoe_fill.png')
+        );
+
+        mainMaterial.uniforms.tDiffuse.value = horseshoeTexture;
+        mainMaterial.uniforms.resolution.value.set(width, height);
+        mainMaterial.uniforms.filterSize.value = 320.0;
+
+        const blurRenderPass = new RenderPass(mainScene, mainCamera);
+        composer.addPass(blurRenderPass);
+
+        const blurHPass = new ShaderPass(BlurShader, 'tDiffuse');
+        blurHPass.uniforms.direction.value.set(1.0, 0.0);
+        blurHPass.uniforms.filterSize.value = 320.0;
+        blurHPass.uniforms.resolution.value.set(width, height);
+        composer.addPass(blurHPass);
+
+        const blurVPass = new ShaderPass(BlurShader, 'tDiffuse');
+        blurVPass.uniforms.direction.value.set(0.0, 1.0);
+        blurVPass.uniforms.filterSize.value = 320.0;
+        blurVPass.uniforms.resolution.value.set(width, height);
+        blurVPass.renderToScreen = true;
+        composer.addPass(blurVPass);
+        break;
+
+      case 5: // CompShader_multiply (Blur + CompAverage 합성)
+        // Mode 3 결과 (Noise + Ramp 평균)
+        mainCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const noiseScene5 = createNoiseScene();
+        const rampScene5 = createRampScene();
+        
+        // RenderTarget 설정 개선 (WebGL 에러 방지)
+        const rtConfig = {
+          format: THREE.RGBAFormat,
+          type: THREE.UnsignedByteType,
+          minFilter: THREE.LinearFilter,
+          magFilter: THREE.LinearFilter,
+          generateMipmaps: false,
+          depthBuffer: false,
+          stencilBuffer: false
+        };
+        
+        const noiseRT5 = new THREE.WebGLRenderTarget(
+          width * SHRINK_FACTOR,
+          height * SHRINK_FACTOR,
+          rtConfig
+        );
+        const rampRT5 = new THREE.WebGLRenderTarget(
+          width * SHRINK_FACTOR,
+          height * SHRINK_FACTOR,
+          rtConfig
+        );
+        
+        renderer.setRenderTarget(noiseRT5);
+        renderer.render(noiseScene5.scene, noiseScene5.camera);
+        renderer.setRenderTarget(rampRT5);
+        renderer.render(rampScene5.scene, rampScene5.camera);
+        
+        // CompAverage 합성
+        const compAvgRT5 = new THREE.WebGLRenderTarget(
+          width * SHRINK_FACTOR,
+          height * SHRINK_FACTOR,
+          rtConfig
+        );
+        const compAvgScene5 = new THREE.Scene();
+        const compAvgMaterial5 = new THREE.ShaderMaterial({
+          uniforms: {
+            tDiffuse1: { value: noiseRT5.texture },
+            tDiffuse2: { value: rampRT5.texture },
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform sampler2D tDiffuse1;
+            uniform sampler2D tDiffuse2;
+            varying vec2 vUv;
+
+            void main() {
+              vec4 texture1 = texture2D(tDiffuse1, vUv);
+              vec4 texture2 = texture2D(tDiffuse2, vUv);
+              vec4 result = mix(texture1, texture2, 0.5);
+              gl_FragColor = result;
+            }
+          `
+        });
+        const compAvgMesh5 = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), compAvgMaterial5);
+        compAvgScene5.add(compAvgMesh5);
+        renderer.setRenderTarget(compAvgRT5);
+        renderer.render(compAvgScene5, mainCamera);
+
+        // Mode 4 결과 (Blur) - 단계별로 직접 렌더링
+        const blurSetup5 = createBlurScene();
+        const horseshoeTexture5 = new THREE.TextureLoader().load(
+          './assets/textures/HorseShoe_fill.png',
+          (tex) => {
+            tex.generateMipmaps = false;
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.needsUpdate = true;
+          }
+        );
+        blurSetup5.material.uniforms.tDiffuse.value = horseshoeTexture5;
+        blurSetup5.material.uniforms.resolution.value.set(width, height);
+        blurSetup5.material.uniforms.filterSize.value = 320.0;
+
+        // 1단계: 원본 렌더링
+        const baseRT5 = new THREE.WebGLRenderTarget(
+          width * SHRINK_FACTOR,
+          height * SHRINK_FACTOR,
+          rtConfig
+        );
+        renderer.setRenderTarget(baseRT5);
+        renderer.render(blurSetup5.scene, blurSetup5.camera);
+        
+        // 2단계: 가로 블러
+        const blurHRT5 = new THREE.WebGLRenderTarget(
+          width * SHRINK_FACTOR,
+          height * SHRINK_FACTOR,
+          rtConfig
+        );
+        const blurHScene5 = new THREE.Scene();
+        const blurHMaterial5 = new THREE.ShaderMaterial({
+          uniforms: THREE.UniformsUtils.clone(BlurShader.uniforms),
+          vertexShader: BlurShader.vertexShader,
+          fragmentShader: BlurShader.fragmentShader
+        });
+        blurHMaterial5.uniforms.tDiffuse.value = baseRT5.texture;
+        blurHMaterial5.uniforms.direction.value.set(1.0, 0.0);
+        blurHMaterial5.uniforms.filterSize.value = 320.0;
+        blurHMaterial5.uniforms.resolution.value.set(width, height);
+        const blurHMesh5 = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blurHMaterial5);
+        blurHScene5.add(blurHMesh5);
+        renderer.setRenderTarget(blurHRT5);
+        renderer.render(blurHScene5, mainCamera);
+
+        // 3단계: 세로 블러
+        const blurVRT5 = new THREE.WebGLRenderTarget(
+          width * SHRINK_FACTOR,
+          height * SHRINK_FACTOR,
+          rtConfig
+        );
+        const blurVScene5 = new THREE.Scene();
+        const blurVMaterial5 = new THREE.ShaderMaterial({
+          uniforms: THREE.UniformsUtils.clone(BlurShader.uniforms),
+          vertexShader: BlurShader.vertexShader,
+          fragmentShader: BlurShader.fragmentShader
+        });
+        blurVMaterial5.uniforms.tDiffuse.value = blurHRT5.texture;
+        blurVMaterial5.uniforms.direction.value.set(0.0, 1.0);
+        blurVMaterial5.uniforms.filterSize.value = 320.0;
+        blurVMaterial5.uniforms.resolution.value.set(width, height);
+        const blurVMesh5 = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blurVMaterial5);
+        blurVScene5.add(blurVMesh5);
+        renderer.setRenderTarget(blurVRT5);
+        renderer.render(blurVScene5, mainCamera);
+
+        // 4단계: CompShader_multiply 합성
+        renderer.setRenderTarget(null); // 원래대로 복구
+        const compMultScene5 = new THREE.Scene();
+        const compMultMaterial5 = new THREE.ShaderMaterial({
+          uniforms: {
+            tDiffuse1: { value: compAvgRT5.texture },
+            tDiffuse2: { value: blurVRT5.texture },
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform sampler2D tDiffuse1;
+            uniform sampler2D tDiffuse2;
+            varying vec2 vUv;
+
+            void main() {
+              vec4 texture1 = texture2D(tDiffuse1, vUv);
+              vec4 texture2 = texture2D(tDiffuse2, vUv);
+              vec4 result = texture1 * texture2;
+              gl_FragColor = result;
+            }
+          `
+        });
+        const compMultMesh5 = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), compMultMaterial5);
+        compMultScene5.add(compMultMesh5);
+        mainScene = compMultScene5;
+        mainMaterial = compMultMaterial5;
+        const compMultPass5 = new RenderPass(compMultScene5, mainCamera);
+        compMultPass5.renderToScreen = true;
+        composer.addPass(compMultPass5);
+        break;
+
+      default:
+        const defaultSetup = createNoiseScene();
+        mainScene = defaultSetup.scene;
+        mainCamera = defaultSetup.camera;
+        mainMaterial = defaultSetup.material;
+        const defaultPass = new RenderPass(mainScene, mainCamera);
+        defaultPass.renderToScreen = true;
+        composer.addPass(defaultPass);
     }
 
-    // Shader 2: RampShader
-    {
-      const rampScene = new THREE.Scene();
-      const rampCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-      const rampMaterial = new THREE.ShaderMaterial({
-        uniforms: THREE.UniformsUtils.clone(RampShader.uniforms),
-        vertexShader: RampShader.vertexShader,
-        fragmentShader: RampShader.fragmentShader,
-      });
-      const rampGeometry = new THREE.PlaneGeometry(2, 2);
-      const rampMesh = new THREE.Mesh(rampGeometry, rampMaterial);
-      rampScene.add(rampMesh);
+    shaderSceneRef.current = mainScene;
+    shaderCameraRef.current = mainCamera;
+    materialRef.current = mainMaterial;
 
-      shaderScenesRef.current[1] = rampScene;
-      shaderCamerasRef.current[1] = rampCamera;
-      shaderMaterialsRef.current[1] = {
-        material: rampMaterial,
-        mesh: rampMesh,
-      };
-    }
-
-    // Shader 3: CompShader
-    {
-      const compScene = new THREE.Scene();
-      const compCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-      const compMaterial = new THREE.ShaderMaterial({
-        uniforms: THREE.UniformsUtils.clone(CompShader.uniforms),
-        vertexShader: CompShader.vertexShader,
-        fragmentShader: CompShader.fragmentShader,
-      });
-      const compGeometry = new THREE.PlaneGeometry(2, 2);
-      const compMesh = new THREE.Mesh(compGeometry, compMaterial);
-      compScene.add(compMesh);
-
-      shaderScenesRef.current[2] = compScene;
-      shaderCamerasRef.current[2] = compCamera;
-      shaderMaterialsRef.current[2] = {
-        material: compMaterial,
-        mesh: compMesh,
-      };
-    }
-
-    // --- RenderTarget 생성 (한 번만) ---
-    const noiseRenderTarget = new THREE.WebGLRenderTarget(1024, 1024, {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
-      format: THREE.RGBAFormat,
-    });
-
-    const rampRenderTarget = new THREE.WebGLRenderTarget(1024, 1024, {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
-      type: THREE.HalfFloatType,
-      format: THREE.RGBAFormat,
-    });
-
-    const compRenderTarget = new THREE.WebGLRenderTarget(1024, 1024, {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
-      type: THREE.FloatType,
-      format: THREE.RGBAFormat,
-    });
-
-    // --- RenderTarget을 직접 저장 (객체 래퍼 제거) ---
-    renderTargetsRef.current[0] = noiseRenderTarget;
-    renderTargetsRef.current[1] = rampRenderTarget;
-    renderTargetsRef.current[2] = compRenderTarget;
-
-    // --- 3개의 viewport 디스플레이 scene/camera 생성 ---
-    const viewportWidth = width / 3;
-    for (let i = 0; i < 3; i++) {
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x1a1a1a);
-
-      // viewport 크기에 맞는 orthographic camera
-      const camera = new THREE.OrthographicCamera(
-        -1, 1, 1, -1, 0.1, 1000
-      );
-      camera.position.z = 10;
-
-      scenesRef.current[i] = scene;
-      camerasRef.current[i] = camera;
-
-      // --- Display Material 생성 (각 viewport마다) ---
-      const displayMaterial = new THREE.MeshBasicMaterial({
-        map: renderTargetsRef.current[i].texture,
-        side: THREE.FrontSide,
-      });
-
-      // fullscreen quad (전체 viewport를 채우는 크기)
-      const displayGeometry = new THREE.PlaneGeometry(2, 2);
-      const displayMesh = new THREE.Mesh(displayGeometry, displayMaterial);
-      displayMesh.position.set(0, 0, 0);
-      scene.add(displayMesh);
-
-      // --- Materials ref 저장 ---
-      if (i === 0) {
-        materialsRef.current[i] = { noiseMaterial: shaderMaterialsRef.current[i].material };
-      } else if (i === 1) {
-        materialsRef.current[i] = { rampMaterial: shaderMaterialsRef.current[i].material };
-      } else {
-        materialsRef.current[i] = { compMaterial: shaderMaterialsRef.current[i].material };
-      }
-    }
-
-    // --- 단일 애니메이션 루프 (viewport 분할 렌더링) ---
+    // --- 단일 애니메이션 루프 ---
     clockRef.current = new THREE.Clock();
 
     const animate = () => {
       animationIdRef.current = requestAnimationFrame(animate);
-      const deltaTime = clockRef.current.getDelta();
-      const renderer = rendererRef.current;
+      const elapsed = clockRef.current.getElapsedTime();
+      const composer = composerRef.current;
+      const material = materialRef.current;
 
-      if (!renderer) return;
+      if (!composer) return;
 
-      // --- 1. 각 Shader를 RenderTarget에 렌더링 ---
-      
-      // Shader 0: NoiseShader
-      if (shaderMaterialsRef.current[0]?.material) {
-        if (stateRef.current.isDrawing) {
-          shaderMaterialsRef.current[0].material.uniforms.uTime.value += deltaTime;
+      // Shader uniform 업데이트
+      if (material && material.uniforms) {
+        if (material.uniforms.uTime) {
+          material.uniforms.uTime.value = elapsed;
         }
-        renderer.setRenderTarget(renderTargetsRef.current[0]);
-        renderer.render(shaderScenesRef.current[0], shaderCamerasRef.current[0]);
+        if (material.uniforms.uPhase) {
+          material.uniforms.uPhase.value = elapsed * 0.5;
+        }
       }
 
-      // Shader 1: RampShader
-      if (shaderMaterialsRef.current[1]?.material) {
-        renderer.setRenderTarget(renderTargetsRef.current[1]);
-        renderer.render(shaderScenesRef.current[1], shaderCamerasRef.current[1]);
-      }
-
-      // Shader 2: CompShader (실제로 texture 0, 1을 사용)
-      if (shaderMaterialsRef.current[2]?.material) {
-        const compMaterial = shaderMaterialsRef.current[2].material;
-        compMaterial.uniforms.tDiffuse1.value = renderTargetsRef.current[0].texture;
-        compMaterial.uniforms.tDiffuse2.value = renderTargetsRef.current[1].texture;
-        
-        renderer.setRenderTarget(renderTargetsRef.current[2]);
-        renderer.render(shaderScenesRef.current[2], shaderCamerasRef.current[2]);
-      }
-
-      // --- 2. 메인 캔버스에 3개 viewport 렌더링 ---
-      renderer.setRenderTarget(null);
-      const viewportWidth = width / 3;
-
-      // Clear 전체 canvas
-      renderer.clear();
-
-      // Viewport 0: Shader 0 결과
-      renderer.setViewport(0, 0, viewportWidth, height);
-      renderer.setScissor(0, 0, viewportWidth, height);
-      renderer.setScissorTest(true);
-      renderer.render(scenesRef.current[0], camerasRef.current[0]);
-
-      // Viewport 1: Shader 1 결과  
-      renderer.setViewport(viewportWidth, 0, viewportWidth, height);
-      renderer.setScissor(viewportWidth, 0, viewportWidth, height);
-      renderer.setScissorTest(true);
-      renderer.render(scenesRef.current[1], camerasRef.current[1]);
-
-      // Viewport 2: Shader 2 결과 (합성된 결과)
-      renderer.setViewport(viewportWidth * 2, 0, viewportWidth, height);
-      renderer.setScissor(viewportWidth * 2, 0, viewportWidth, height);
-      renderer.setScissorTest(true);
-      renderer.render(scenesRef.current[2], camerasRef.current[2]);
-      
-      renderer.setScissorTest(false);
+      composer.render();
     };
 
     animate();
@@ -309,23 +472,18 @@ export function useShaderComparison(
       const dy = y - stateRef.current.lastY;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      // --- Shader 파라미터 조절 ---
-      if (shaderMaterialsRef.current[0]?.material && Math.abs(dy) > 1) {
-        shaderMaterialsRef.current[0].material.uniforms.uContrast.value +=
+      // --- BlurShader 파라미터 조절 ---
+      if (materialRef.current && Math.abs(dy) > 1) {
+        materialRef.current.uniforms.filterSize.value +=
           dy * 0.01;
-        shaderMaterialsRef.current[0].material.uniforms.uContrast.value =
+        materialRef.current.uniforms.filterSize.value =
           Math.max(
-            0.5,
+            0.1,
             Math.min(
-              2.0,
-              shaderMaterialsRef.current[0].material.uniforms.uContrast.value,
+              5.0,
+              materialRef.current.uniforms.filterSize.value,
             ),
           );
-      }
-
-      if (shaderMaterialsRef.current[1]?.material) {
-        shaderMaterialsRef.current[1].material.uniforms.uPhase.value +=
-          distance * 0.003;
       }
 
       // --- 드로잉 ---
@@ -379,23 +537,19 @@ export function useShaderComparison(
         cancelAnimationFrame(animationIdRef.current);
       }
 
+      // Dispose composer
+      if (composerRef.current) {
+        composerRef.current.dispose();
+      }
+
       // Dispose renderer
       if (rendererRef.current) {
         rendererRef.current.dispose();
       }
 
-      // Cleanup shader materials
-      for (let i = 0; i < 3; i++) {
-        if (shaderMaterialsRef.current[i]?.material) {
-          shaderMaterialsRef.current[i].material.dispose();
-        }
-      }
-
-      // Cleanup render targets
-      for (let i = 0; i < 3; i++) {
-        if (renderTargetsRef.current[i]) {
-          renderTargetsRef.current[i].dispose();
-        }
+      // Cleanup shader material
+      if (materialRef.current) {
+        materialRef.current.dispose();
       }
 
       overlayCanvas.removeEventListener(
@@ -411,17 +565,17 @@ export function useShaderComparison(
         handlersRef.current.handleMouseMove,
       );
     };
-  }, []);
+  }, [shaderMode]);
 
   return {
     getRenderer() {
       return rendererRef.current;
     },
-    getMaterials() {
-      return materialsRef.current;
+    getMaterial() {
+      return materialRef.current;
     },
-    getRenderTargets() {
-      return renderTargetsRef.current;
+    getShaderScene() {
+      return shaderSceneRef.current;
     },
     getCanvas() {
       return canvasRef.current;

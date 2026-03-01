@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { NoiseShader, MultiplyShader, RampShader, CompShader } from '../constants/shaders';
+import { NoiseShader, MultiplyShader, RampShader, CompShader_average } from '../constants/shaders';
 
 /**
  * 좌측 패널 (드로잉 영역) 관리 커스텀 훅
@@ -109,9 +109,9 @@ export function useLeftPanel(containerRef, canvasRef, uiCanvasRef) {
     const compCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     const compMaterial = new THREE.ShaderMaterial({
-      uniforms: THREE.UniformsUtils.clone(CompShader.uniforms),
-      vertexShader: CompShader.vertexShader,
-      fragmentShader: CompShader.fragmentShader,
+      uniforms: THREE.UniformsUtils.clone(CompShader_average.uniforms),
+      vertexShader: CompShader_average.vertexShader,
+      fragmentShader: CompShader_average.fragmentShader,
     });
 
     const compMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), compMaterial);
