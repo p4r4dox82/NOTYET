@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { NoiseShader, MultiplyShader } from '../constants/shaders';
+import { NoiseShader, MultiplyShader, RampShader, CompShader } from '../constants/shaders';
 
 /**
  * 좌측 패널 (드로잉 영역) 관리 커스텀 훅
@@ -80,9 +80,50 @@ export function useLeftPanel(containerRef, canvasRef, uiCanvasRef) {
     const noiseGeometry = new THREE.PlaneGeometry(2, 2);
     const noiseMesh = new THREE.Mesh(noiseGeometry, noiseMaterial);
     noiseScene.add(noiseMesh);
+    
+    // --- Ramp RenderTarget (램프 효과용) ---
+    // 1. 램프를 그릴 가상 도화지 (RenderTarget)
+    const rampRenderTarget = new THREE.WebGLRenderTarget(1024, 1024, {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        type: THREE.HalfFloatType,
+        format: THREE.RGBAFormat,
+    });
+
+    // 2. 램프 전용 가상 스튜디오 (Scene & Camera)
+    const rampScene = new THREE.Scene();
+    const rampCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+    // 3. 램프 쉐이더 & 메쉬
+    const rampMaterial = new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.clone(RampShader.uniforms),
+        vertexShader: RampShader.vertexShader,
+        fragmentShader: RampShader.fragmentShader
+    });
+    const rampMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), rampMaterial);
+    rampScene.add(rampMesh);
+
+    // --- Comp RenderTarget (노이즈 + 드로잉 합성) ---
+    const compRenderTarget = new THREE.WebGLRenderTarget(1024, 1024);
+    const compScene = new THREE.Scene();
+    const compCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+    const compMaterial = new THREE.ShaderMaterial({
+      uniforms: THREE.UniformsUtils.clone(CompShader.uniforms),
+      vertexShader: CompShader.vertexShader,
+      fragmentShader: CompShader.fragmentShader,
+    });
+
+    const compMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), compMaterial);
+    compScene.add(compMesh);
 
     // --- Combined RenderTarget (노이즈 + 드로잉 합성) ---
-    const combinedRenderTarget = new THREE.WebGLRenderTarget(1024, 1024);
+    const combinedRenderTarget = new THREE.WebGLRenderTarget(1024, 1024, {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        type: THREE.FloatType,
+        format: THREE.RGBAFormat,
+    });
     const combineScene = new THREE.Scene();
     const combineCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
@@ -98,8 +139,9 @@ export function useLeftPanel(containerRef, canvasRef, uiCanvasRef) {
       uniforms: THREE.UniformsUtils.clone(MultiplyShader.uniforms),
       vertexShader: MultiplyShader.vertexShader,
       fragmentShader: MultiplyShader.fragmentShader,
+      
     });
-    combineMaterial.uniforms.uBlurSize.value = 0.05;
+    combineMaterial.uniforms.uBlurSize.value = 8.0;
 
     const combineMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), combineMaterial);
     combineScene.add(combineMesh);
@@ -169,13 +211,13 @@ export function useLeftPanel(containerRef, canvasRef, uiCanvasRef) {
       //   Math.min(5.0, noiseMaterial.uniforms.uScale.value)
       // );
 
-      if (Math.abs(dx) > 1) {
-        noiseMaterial.uniforms.uDetail.value += dx * 0.01;
-        noiseMaterial.uniforms.uDetail.value = Math.max(
-          1.0,
-          Math.min(5.0, noiseMaterial.uniforms.uDetail.value)
-        );
-      }
+      // if (Math.abs(dx) > 1) {
+      //   rampMaterial.uniforms.uPhase.value += dx * 0.003;
+      //   // rampMaterial.uniforms.uPhase.value = Math.max(
+      //   //   0.0,
+      //   //   Math.min(1.0, rampMaterial.uniforms.uPhase.value)
+      //   // );
+      // }
 
       if (Math.abs(dy) > 1) {
         noiseMaterial.uniforms.uContrast.value += dy * 0.01;
@@ -190,6 +232,8 @@ export function useLeftPanel(containerRef, canvasRef, uiCanvasRef) {
         0.005,
         combineMaterial.uniforms.uBlurSize.value
       );
+
+      rampMaterial.uniforms.uPhase.value += distance * 0.003;
 
       // --- 드로잉 ---
       const steps = Math.ceil(distance / (LINE_RADIUS * 0.25));
@@ -253,16 +297,28 @@ export function useLeftPanel(containerRef, canvasRef, uiCanvasRef) {
       renderer.render(noiseScene, noiseCamera);
       renderer.setRenderTarget(null);
 
-      // 2. 합성
-      // combineMaterial.uniforms.tDiffuse1.value = noiseRenderTarget.texture;
-      // combineMaterial.uniforms.tDiffuse2.value = horseshoeTexture;
+      // // 램프 효과 생성
+      renderer.setRenderTarget(rampRenderTarget);
+      renderer.render(rampScene, rampCamera);
+      renderer.setRenderTarget(null);
 
-      // renderer.setRenderTarget(combinedRenderTarget);
-      // renderer.render(combineScene, combineCamera);
-      // renderer.setRenderTarget(null);
+      compMaterial.uniforms.tDiffuse1.value = noiseRenderTarget.texture;
+      compMaterial.uniforms.tDiffuse2.value = rampRenderTarget.texture;
+
+      renderer.setRenderTarget(compRenderTarget);
+      renderer.render(compScene, compCamera);
+      renderer.setRenderTarget(null);
+
+      // // 2. 합성
+      combineMaterial.uniforms.tDiffuse1.value = compRenderTarget.texture;
+      combineMaterial.uniforms.tDiffuse2.value = horseshoeTexture;
+
+      renderer.setRenderTarget(combinedRenderTarget);
+      renderer.render(combineScene, combineCamera);
+      renderer.setRenderTarget(null);
 
       // 3. 최종 렌더
-      leftMaterial.map = noiseRenderTarget.texture;
+      leftMaterial.map = combinedRenderTarget.texture;
       leftMaterial.needsUpdate = true;
       renderer.render(scene, camera);
 
