@@ -9,18 +9,18 @@ import {
 
 /**
  * 3개의 Shader를 비교하는 커스텀 훅
- * 공통 Shader를 생성하고 각 렌더러에서 재사용
+ * 하나의 canvas에 viewport 분할을 통해 3개 shader를 렌더링
  */
 export function useShaderComparison(
-  containerRefs,
-  canvasRefs,
+  containerRef,
+  canvasRef,
   overlayCanvasRef,
 ) {
-  const renderersRef = useRef([null, null, null]);
+  const rendererRef = useRef(null);
   const scenesRef = useRef([null, null, null]);
   const materialsRef = useRef([null, null, null]);
   const renderTargetsRef = useRef([null, null, null]);
-  const meshesRef = useRef([null, null, null]);
+  const camerasRef = useRef([null, null, null]);
   const stateRef = useRef({
     isDrawing: false,
     lastX: 0,
@@ -28,22 +28,18 @@ export function useShaderComparison(
   });
 
   const handlersRef = useRef({});
-  const animationIdsRef = useRef([null, null, null]);
+  const animationIdRef = useRef(null);
 
   // --- 공통 Shader Scene/Material 저장 ---
   const shaderScenesRef = useRef([null, null, null]);
   const shaderCamerasRef = useRef([null, null, null]);
   const shaderMaterialsRef = useRef([null, null, null]);
 
-  // --- Display관련 저장 ---
-  const displayCamerasRef = useRef([null, null, null]);
-  const displayMaterialsRef = useRef([null, null, null]);
-
   // --- Clock 저장 (NoiseShader용) ---
   const clockRef = useRef(null);
 
   useEffect(() => {
-    if (!containerRefs[0]?.current || !canvasRefs[0]?.current) return;
+    if (!containerRef?.current || !canvasRef?.current) return;
 
     const LINE_RADIUS = 3;
     const UI_CANVAS_SIZE = 256;
@@ -57,6 +53,20 @@ export function useShaderComparison(
     const overlayContext = overlayCanvas.getContext("2d");
     overlayContext.fillStyle = "#000000";
     overlayContext.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+    // --- 메인 캔버스 및 렌더러 설정 ---
+    const canvas = canvasRef.current;
+    const width = containerRef.current.clientWidth;
+    const height = containerRef.current.clientHeight;
+    
+    canvas.width = Math.floor(width);
+    canvas.height = Math.floor(height);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+    renderer.setSize(Math.floor(width), Math.floor(height));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    rendererRef.current = renderer;
 
     // --- 공통 Shader 생성 (한 번만) ---
     // Shader 1: NoiseShader
@@ -144,147 +154,111 @@ export function useShaderComparison(
       format: THREE.RGBAFormat,
     });
 
-    renderTargetsRef.current[0] = { noiseRenderTarget };
-    renderTargetsRef.current[1] = { rampRenderTarget };
-    renderTargetsRef.current[2] = { compRenderTarget };
+    // --- RenderTarget을 직접 저장 (객체 래퍼 제거) ---
+    renderTargetsRef.current[0] = noiseRenderTarget;
+    renderTargetsRef.current[1] = rampRenderTarget;
+    renderTargetsRef.current[2] = compRenderTarget;
 
-    // --- 각 위치별 렌더러 및 디스플레이 초기화 ---
-    for (let shaderIndex = 0; shaderIndex < 3; shaderIndex++) {
-      const containerRef = containerRefs[shaderIndex];
-      const canvasRef = canvasRefs[shaderIndex];
-
-      if (!containerRef.current || !canvasRef.current) continue;
-
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
-
-      // --- Three.js 설정 ---
-      const canvas = canvasRef.current;
-      canvas.width = Math.floor(width);
-      canvas.height = Math.floor(height);
-
+    // --- 3개의 viewport 디스플레이 scene/camera 생성 ---
+    const viewportWidth = width / 3;
+    for (let i = 0; i < 3; i++) {
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x1a1a1a);
 
+      // viewport 크기에 맞는 orthographic camera
       const camera = new THREE.OrthographicCamera(
-        -width / 2,
-        width / 2,
-        height / 2,
-        -height / 2,
-        0.1,
-        1000,
+        -1, 1, 1, -1, 0.1, 1000
       );
       camera.position.z = 10;
 
-      const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
-      renderer.setSize(Math.floor(width), Math.floor(height));
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.0;
+      scenesRef.current[i] = scene;
+      camerasRef.current[i] = camera;
 
-      renderersRef.current[shaderIndex] = renderer;
-      scenesRef.current[shaderIndex] = scene;
-      displayCamerasRef.current[shaderIndex] = camera;
-
-      // --- 디스플레이 Material 및 Mesh 생성 ---
-      const shaderMaterialData = shaderMaterialsRef.current[shaderIndex];
-      const shaderMaterial = shaderMaterialData.material;
-      let renderTarget;
-
-      if (shaderIndex === 0) {
-        renderTarget = noiseRenderTarget;
-        materialsRef.current[shaderIndex] = { noiseMaterial: shaderMaterial };
-      } else if (shaderIndex === 1) {
-        renderTarget = rampRenderTarget;
-        materialsRef.current[shaderIndex] = { rampMaterial: shaderMaterial };
-      } else {
-        renderTarget = compRenderTarget;
-        materialsRef.current[shaderIndex] = { compMaterial: shaderMaterial };
-      }
-
+      // --- Display Material 생성 (각 viewport마다) ---
       const displayMaterial = new THREE.MeshBasicMaterial({
-        map: renderTarget.texture,
+        map: renderTargetsRef.current[i].texture,
         side: THREE.FrontSide,
       });
 
-      const displayGeometry = new THREE.PlaneGeometry(width, height);
+      // fullscreen quad (전체 viewport를 채우는 크기)
+      const displayGeometry = new THREE.PlaneGeometry(2, 2);
       const displayMesh = new THREE.Mesh(displayGeometry, displayMaterial);
       displayMesh.position.set(0, 0, 0);
       scene.add(displayMesh);
 
-      meshesRef.current[shaderIndex] = { displayMesh };
-      displayMaterialsRef.current[shaderIndex] = displayMaterial;
+      // --- Materials ref 저장 ---
+      if (i === 0) {
+        materialsRef.current[i] = { noiseMaterial: shaderMaterialsRef.current[i].material };
+      } else if (i === 1) {
+        materialsRef.current[i] = { rampMaterial: shaderMaterialsRef.current[i].material };
+      } else {
+        materialsRef.current[i] = { compMaterial: shaderMaterialsRef.current[i].material };
+      }
     }
 
-    // --- 단일 애니메이션 루프 (모든 Shader 순서대로 렌더링) ---
+    // --- 단일 애니메이션 루프 (viewport 분할 렌더링) ---
     clockRef.current = new THREE.Clock();
 
     const animate = () => {
-      animationIdsRef.current[0] = requestAnimationFrame(animate);
+      animationIdRef.current = requestAnimationFrame(animate);
       const deltaTime = clockRef.current.getDelta();
+      const renderer = rendererRef.current;
 
-      // --- 1. NoiseShader 렌더링 ---
-      if (shaderMaterialsRef.current[0]?.material && renderersRef.current[0]) {
+      if (!renderer) return;
+
+      // --- 1. 각 Shader를 RenderTarget에 렌더링 ---
+      
+      // Shader 0: NoiseShader
+      if (shaderMaterialsRef.current[0]?.material) {
         if (stateRef.current.isDrawing) {
-          shaderMaterialsRef.current[0].material.uniforms.uTime.value +=
-            deltaTime;
+          shaderMaterialsRef.current[0].material.uniforms.uTime.value += deltaTime;
         }
-        renderersRef.current[0].setRenderTarget(
-          renderTargetsRef.current[0].noiseRenderTarget,
-        );
-        renderersRef.current[0].render(
-          shaderScenesRef.current[0],
-          shaderCamerasRef.current[0],
-        );
-        renderersRef.current[0].setRenderTarget(null);
+        renderer.setRenderTarget(renderTargetsRef.current[0]);
+        renderer.render(shaderScenesRef.current[0], shaderCamerasRef.current[0]);
       }
 
-      // --- 2. RampShader 렌더링 ---
-      if (shaderMaterialsRef.current[1]?.material && renderersRef.current[1]) {
-        renderersRef.current[1].setRenderTarget(
-          renderTargetsRef.current[1].rampRenderTarget,
-        );
-        renderersRef.current[1].render(
-          shaderScenesRef.current[1],
-          shaderCamerasRef.current[1],
-        );
-        renderersRef.current[1].setRenderTarget(null);
+      // Shader 1: RampShader
+      if (shaderMaterialsRef.current[1]?.material) {
+        renderer.setRenderTarget(renderTargetsRef.current[1]);
+        renderer.render(shaderScenesRef.current[1], shaderCamerasRef.current[1]);
       }
 
-      // --- 3. CompShader 렌더링 (다른 두 Shader의 결과를 입력으로 사용) ---
-      if (shaderMaterialsRef.current[2]?.material && renderersRef.current[2]) {
-        // console.log("ASD");
-        // const compMaterial = shaderMaterialsRef.current[2].material;
-        // compMaterial.uniforms.tDiffuse1.value = renderTargetsRef.current[0].noiseRenderTarget.texture;
-        // compMaterial.uniforms.tDiffuse2.value = renderTargetsRef.current[1].rampRenderTarget.texture;
-
-        // renderersRef.current[2].setRenderTarget(renderTargetsRef.current[2].compRenderTarget);
-        // renderersRef.current[2].render(shaderScenesRef.current[2], shaderCamerasRef.current[2]);
-        // renderersRef.current[2].setRenderTarget(null);
-        renderersRef.current[2].setRenderTarget(
-          renderTargetsRef.current[1].rampRenderTarget,
-        );
-        renderersRef.current[2].render(
-          shaderScenesRef.current[1],
-          shaderCamerasRef.current[1],
-        );
-        renderersRef.current[2].setRenderTarget(null);
+      // Shader 2: CompShader (실제로 texture 0, 1을 사용)
+      if (shaderMaterialsRef.current[2]?.material) {
+        const compMaterial = shaderMaterialsRef.current[2].material;
+        compMaterial.uniforms.tDiffuse1.value = renderTargetsRef.current[0].texture;
+        compMaterial.uniforms.tDiffuse2.value = renderTargetsRef.current[1].texture;
+        
+        renderer.setRenderTarget(renderTargetsRef.current[2]);
+        renderer.render(shaderScenesRef.current[2], shaderCamerasRef.current[2]);
       }
 
-      // --- 4. 각 위치에서 결과 디스플레이 ---
-      for (let i = 0; i < 3; i++) {
-        if (
-          displayMaterialsRef.current[i] &&
-          renderersRef.current[i] &&
-          scenesRef.current[i] &&
-          displayCamerasRef.current[i]
-        ) {
-          // console.log(i);
-          renderersRef.current[i].render(
-            scenesRef.current[i],
-            displayCamerasRef.current[i],
-          );
-        }
-      }
+      // --- 2. 메인 캔버스에 3개 viewport 렌더링 ---
+      renderer.setRenderTarget(null);
+      const viewportWidth = width / 3;
+
+      // Clear 전체 canvas
+      renderer.clear();
+
+      // Viewport 0: Shader 0 결과
+      renderer.setViewport(0, 0, viewportWidth, height);
+      renderer.setScissor(0, 0, viewportWidth, height);
+      renderer.setScissorTest(true);
+      renderer.render(scenesRef.current[0], camerasRef.current[0]);
+
+      // Viewport 1: Shader 1 결과  
+      renderer.setViewport(viewportWidth, 0, viewportWidth, height);
+      renderer.setScissor(viewportWidth, 0, viewportWidth, height);
+      renderer.setScissorTest(true);
+      renderer.render(scenesRef.current[1], camerasRef.current[1]);
+
+      // Viewport 2: Shader 2 결과 (합성된 결과)
+      renderer.setViewport(viewportWidth * 2, 0, viewportWidth, height);
+      renderer.setScissor(viewportWidth * 2, 0, viewportWidth, height);
+      renderer.setScissorTest(true);
+      renderer.render(scenesRef.current[2], camerasRef.current[2]);
+      
+      renderer.setScissorTest(false);
     };
 
     animate();
@@ -335,7 +309,7 @@ export function useShaderComparison(
       const dy = y - stateRef.current.lastY;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      // --- Shader 파라미터 조절 (모든 shader) ---
+      // --- Shader 파라미터 조절 ---
       if (shaderMaterialsRef.current[0]?.material && Math.abs(dy) > 1) {
         shaderMaterialsRef.current[0].material.uniforms.uContrast.value +=
           dy * 0.01;
@@ -349,8 +323,10 @@ export function useShaderComparison(
           );
       }
 
-      shaderMaterialsRef.current[1].material.uniforms.uPhase.value +=
-        distance * 0.003;
+      if (shaderMaterialsRef.current[1]?.material) {
+        shaderMaterialsRef.current[1].material.uniforms.uPhase.value +=
+          distance * 0.003;
+      }
 
       // --- 드로잉 ---
       const steps = Math.ceil(distance / (LINE_RADIUS * 0.25));
@@ -399,34 +375,26 @@ export function useShaderComparison(
     // --- Cleanup ---
     return () => {
       // Cancel animation
-      if (animationIdsRef.current[0]) {
-        cancelAnimationFrame(animationIdsRef.current[0]);
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current);
       }
 
-      // Dispose renderers
-      for (let i = 0; i < 3; i++) {
-        if (renderersRef.current[i]) {
-          renderersRef.current[i].dispose();
-        }
+      // Dispose renderer
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
       }
 
-      // Cleanup 공통 shader materials
+      // Cleanup shader materials
       for (let i = 0; i < 3; i++) {
         if (shaderMaterialsRef.current[i]?.material) {
           shaderMaterialsRef.current[i].material.dispose();
-        }
-        if (displayMaterialsRef.current[i]) {
-          displayMaterialsRef.current[i].dispose();
         }
       }
 
       // Cleanup render targets
       for (let i = 0; i < 3; i++) {
         if (renderTargetsRef.current[i]) {
-          const rtData = renderTargetsRef.current[i];
-          Object.values(rtData).forEach((rt) => {
-            if (rt?.dispose) rt.dispose();
-          });
+          renderTargetsRef.current[i].dispose();
         }
       }
 
@@ -446,8 +414,8 @@ export function useShaderComparison(
   }, []);
 
   return {
-    getRenderers() {
-      return renderersRef.current;
+    getRenderer() {
+      return rendererRef.current;
     },
     getMaterials() {
       return materialsRef.current;
@@ -455,8 +423,8 @@ export function useShaderComparison(
     getRenderTargets() {
       return renderTargetsRef.current;
     },
-    getCanvases() {
-      return canvasRefs.map((ref) => ref.current);
+    getCanvas() {
+      return canvasRef.current;
     },
   };
 }

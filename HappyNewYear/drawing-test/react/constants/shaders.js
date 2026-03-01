@@ -338,9 +338,9 @@ export const CompShader = {
             vec4 texture1 = texture2D(tDiffuse1, vUv);
             vec4 texture2 = texture2D(tDiffuse2, vUv);
             
-            // 간단한 곱셈 합성
-            vec4 blended = texture1 * texture2;
-            gl_FragColor = blended;
+            // 곱셈 합성
+            vec4 result = texture1 * texture2;
+            gl_FragColor = result;
         }
     `
 };
