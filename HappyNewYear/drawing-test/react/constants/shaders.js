@@ -3,16 +3,10 @@ import * as THREE from 'three';
 export const NoiseShader = {
   uniforms: {
     uTime: { value: 0 },
-    uScale: { value: 2.0 },
+    uScale: { value: 3.0 },
     uHarmonics: { value: 3.0 },       // int -> float로 변경 (안전성)
     uHarmonicSpread: { value: 2.0 }, 
-    uHarmonicGain: { value: 0.7 },   
-    uExponent: { value: 1.0 },    
-    uAmplitude: { value: 0.5 },   
-    uOffset: { value: 0.5 },       
-    uDetail: { value: 4.0 },
-    uRoughness: { value: 0.3 },
-    uContrast: { value: 2.0 },
+    uHarmonicGain: { value: 0.7 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -212,7 +206,7 @@ export const NoiseShader = {
       float mapGray = (sigGray * 0.5 + 0.5); // (0, 1)
 
       mapGray = clamp(mapGray, 0.0, 1.0);
-      float expGray = pow(mapGray, 2.8); // (0, 1)
+      float expGray = pow(mapGray, 1.8); // (0, 1)
 
       return expGray;
     }
@@ -222,7 +216,7 @@ export const NoiseShader = {
         float a = 1.0;      // 0.5보단 1.0부터 시작하는 것이 계산이 직관적입니다.
         float maxAmp = 0.0; // [추가] 지금까지 더해진 진폭의 최대치 누적
 
-        vec3 shift = vec3(100.0);
+        vec3 shift = vec3(0.0);
 
         for (int i = 0; i < 10; ++i) { 
           if(float(i) >= uHarmonics) break; 
@@ -239,7 +233,7 @@ export const NoiseShader = {
         
         // 2단계: Simplex의 한계점(±0.75)을 ±1.0 끝까지 닿도록 살짝 팽창(Scale)시켜줌
         // (1.3 대신 1.2~1.5 사이를 넣어가며 마음에 드는 흑백 대비를 찾으시면 됩니다)
-        return normalizedNoise * 1.2; 
+        return normalizedNoise * 1.3; 
     }
 
 
@@ -257,7 +251,7 @@ export const NoiseShader = {
 
       vec2 vUv_8 = applyKaleidoscope(vUv, vec2(0.5, 0.5), 4.0);
       
-      vec3 coord = vec3(vUv_8 * 3.5, uTime * 0.2); 
+      vec3 coord = vec3(vUv_8 * uScale, uTime * 0.2); 
       
       float n = fbm(coord);
 
@@ -300,16 +294,16 @@ export const RampShader = {
     }
 
     float scaling(float x) {
-      float gray = x * 0.8; // 0 ~ 1 -> 0.2 ~ 1.0
+      float gray = x * 0.7; // 0 ~ 1 -> 0.0 ~ 0.9
 
       float sigGray = inverseCustomSigmoid(gray, 1.0) / 3.1; // (-1, 1)
 
       float mapGray = (sigGray * 0.5 + 0.5); // (0, 1)
 
       mapGray = clamp(mapGray, 0.0, 1.0);
-      float expGray = pow(mapGray, 2.8); // (0, 1)
+      float expGray = pow(mapGray, 2.0); // (0, 1)
 
-      return expGray;
+      return expGray * 1.3;
     }
       
 

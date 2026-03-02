@@ -27,6 +27,7 @@ export function useShaderComparison(
   const shaderSceneRef = useRef(null);
   const shaderCameraRef = useRef(null);
   const materialRef = useRef(null);
+  const allMaterialsRef = useRef({}); // 모든 material들을 추적
   const stateRef = useRef({
     isDrawing: false,
     lastX: 0,
@@ -104,6 +105,14 @@ export function useShaderComparison(
     // [Node 4] Blur 원본 이미지
     const blurSetup = createBlurScene();
 
+    // 모든 material들을 ref에 저장 (animate 루프에서 모두 업데이트하기 위해)
+    allMaterialsRef.current = {
+      noise: noiseSetup.material,
+      ramp: rampSetup.material,
+      compAvg: compAvgSetup.material,
+      blur: blurSetup.material,
+    };
+
     // 텍스처 로드 (1번만)
     const horseshoeTexture = new THREE.TextureLoader().load('./assets/textures/HorseShoe_fill.png', (tex) => {
         tex.generateMipmaps = true;
@@ -125,11 +134,13 @@ export function useShaderComparison(
     const blurHPass = new ShaderPass(BlurShader);
     blurHPass.uniforms.direction.value.set(1.0, 0.0);
     blurHPass.uniforms.filterSize.value = 32.0;
+    blurHPass.uniforms.uPreShrink.value = 8.0; // 👈 TD의 Pre-Shrink 값 설정
     blurHPass.uniforms.resolution.value.set(width, height);
 
     const blurVPass = new ShaderPass(BlurShader);
     blurVPass.uniforms.direction.value.set(0.0, 1.0);
     blurVPass.uniforms.filterSize.value = 32.0;
+    blurHPass.uniforms.uPreShrink.value = 8.0; // 👈 TD의 Pre-Shrink 값 설정
     blurVPass.uniforms.resolution.value.set(width, height);
 
     const compMultPass = new ShaderPass(CompShader_multiply); // Mode 5용
@@ -164,13 +175,6 @@ export function useShaderComparison(
             break;
 
         case 3: // Comp Average (Noise + Ramp)
-            // 렌더 타겟에 각각 그리기
-            renderer.setRenderTarget(noiseRT);
-            renderer.render(noiseSetup.scene, mainCamera);
-            renderer.setRenderTarget(rampRT);
-            renderer.render(rampSetup.scene, mainCamera);
-            renderer.setRenderTarget(null);
-
             // 결과물을 Average Material에 꽂아줌
             compAvgSetup.material.uniforms.tDiffuse1.value = noiseRT.texture;
             compAvgSetup.material.uniforms.tDiffuse2.value = rampRT.texture;
@@ -190,27 +194,14 @@ export function useShaderComparison(
             
             // 2. 블러 패스 추가
             composer.addPass(blurHPass);
-            blurVPass.renderToScreen = true; // 여기서 출력!
             composer.addPass(blurVPass);
+            blurVPass.renderToScreen = true; // 여기서 출력!
             mainScene = blurSetup.scene;
             mainCamera = blurSetup.camera;
             mainMaterial = blurSetup.material;
             break;
 
         case 5: // Multiply (Case 3 + Case 4 의 결합!!!)
-            // 1. [Case 3의 로직 재사용] Noise와 Ramp를 합쳐서 compAvgRT에 구워둠
-            renderer.setRenderTarget(noiseRT);
-            renderer.render(noiseSetup.scene, mainCamera);
-            renderer.setRenderTarget(rampRT);
-            renderer.render(rampSetup.scene, mainCamera);
-            
-            compAvgSetup.material.uniforms.tDiffuse1.value = noiseRT.texture;
-            compAvgSetup.material.uniforms.tDiffuse2.value = rampRT.texture;
-            
-            renderer.setRenderTarget(compAvgRT);
-            renderer.render(compAvgSetup.scene, mainCamera);
-            renderer.setRenderTarget(null);
-
             // 2. [Case 4의 파이프라인 재사용] 원본 씬 -> 블러
             renderPass.scene = blurSetup.scene;
             composer.addPass(renderPass);
@@ -247,19 +238,40 @@ export function useShaderComparison(
       animationIdRef.current = requestAnimationFrame(animate);
       const elapsed = clockRef.current.getElapsedTime();
       const composer = composerRef.current;
-      const material = materialRef.current;
 
       if (!composer) return;
 
-      // Shader uniform 업데이트
-      // if (material && material.uniforms) {
-      //   if (material.uniforms.uTime) {
-      //     material.uniforms.uTime.value = elapsed;
-      //   }
-      //   if (material.uniforms.uPhase) {
-      //     material.uniforms.uPhase.value = elapsed * 0.5;
-      //   }
-      // }
+      // 모든 material들의 uniforms 업데이트
+      const updateMaterialUniforms = (material) => {
+        if (material && material.uniforms) {
+          if (material.uniforms.uTime) {
+            material.uniforms.uTime.value = elapsed;
+          }
+          if (material.uniforms.uPhase) {
+            material.uniforms.uPhase.value = elapsed * 0.5;
+          }
+        }
+      };
+
+      Object.values(allMaterialsRef.current).forEach(updateMaterialUniforms);
+
+      // shaderMode가 3 또는 5인 경우, 매 프레임 노이즈와 램프를 리렌더링
+      if (shaderMode === 3 || shaderMode === 5) {
+        renderer.setRenderTarget(noiseRT);
+        renderer.render(noiseSetup.scene, mainCamera);
+        renderer.setRenderTarget(rampRT);
+        renderer.render(rampSetup.scene, mainCamera);
+        renderer.setRenderTarget(null);
+
+        compAvgSetup.material.uniforms.tDiffuse1.value = noiseRT.texture;
+        compAvgSetup.material.uniforms.tDiffuse2.value = rampRT.texture;
+
+        if (shaderMode === 5) {
+          renderer.setRenderTarget(compAvgRT);
+          renderer.render(compAvgSetup.scene, mainCamera);
+          renderer.setRenderTarget(null);
+        }
+      }
 
       composer.render();
     };
