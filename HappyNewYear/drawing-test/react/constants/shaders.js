@@ -368,8 +368,8 @@ export const CompShader_average = {
 
 export const CompShader_multiply = {
     uniforms: {
-        tDiffuse1: { value: null },
-        tDiffuse2: { value: null },
+        tDiffuse: { value: null },  // ShaderPass/EffectComposer 호환 (첫번째 입력)
+        tDiffuse2: { value: null }, // 두번째 입력
     },
     vertexShader: `
         varying vec2 vUv;
@@ -379,12 +379,12 @@ export const CompShader_multiply = {
         }
     `,
     fragmentShader: `
-        uniform sampler2D tDiffuse1;
+        uniform sampler2D tDiffuse;
         uniform sampler2D tDiffuse2;
         varying vec2 vUv;
 
         void main() {
-            vec4 texture1 = texture2D(tDiffuse1, vUv);
+            vec4 texture1 = texture2D(tDiffuse, vUv);
             vec4 texture2 = texture2D(tDiffuse2, vUv);
             
             // 곱셈(Multiply) 합성: 두 텍스처의 색상을 곱하기
@@ -471,10 +471,11 @@ export const MultiplyShader = {
 // BlurShader - 고품질 분리가능한 1D 가우시안 블러
 export const BlurShader = {
     uniforms: {
-        tDiffuse: { value: null },                                // 원본 이미지 텍스처
-        resolution: { value: new THREE.Vector2(1920.0, 1080.0) }, // 화면 해상도
-        direction: { value: new THREE.Vector2(1.0, 0.0) },        // 가로 블러: vec2(1.0, 0.0), 세로 블러: vec2(0.0, 1.0)
-        filterSize: { value: 24.0 }                              // TD의 Filter Size
+        tDiffuse: { value: null },
+        resolution: { value: new THREE.Vector2(1024, 1024) },
+        direction: { value: new THREE.Vector2(1.0, 0.0) },
+        filterSize: { value: 24.0 },
+        uPreShrink: { value: 4.0 } // 👈 [핵심] TD의 Pre-Shrink 값 (1.0, 2.0, 4.0, 8.0 등)
     },
     vertexShader: `
         varying vec2 vUv;
@@ -488,60 +489,56 @@ export const BlurShader = {
         uniform vec2 resolution;
         uniform vec2 direction;
         uniform float filterSize;
+        uniform float uPreShrink;
 
         varying vec2 vUv;
 
-        // 정규분포 가중치 계산
         float gaussian(float radius, float sigma) {
             return exp(-(radius * radius) / (2.0 * sigma * sigma));
         }
 
         void main() {
-            if (filterSize <= 1.0) {
+            if (filterSize <= 1.0 && uPreShrink <= 1.0) {
                 gl_FragColor = texture2D(tDiffuse, vUv);
                 return;
             }
 
             vec2 tex_offset = 1.0 / resolution;
 
-            // RGB와 Alpha 분리 누적
             vec3 resultRGB = vec3(0.0);
             float resultAlpha = 0.0;
             float total_weight = 0.0;
 
             float radius = filterSize / 2.0;
             float sigma = radius / 3.0;
-
-            // 1D 블러는 훨씬 가벼우므로 MAX_RADIUS를 30.0까지 넉넉하게 줘도 성능 하락이 거의 없습니다.
             const float MAX_RADIUS = 30.0;
             float limit = min(radius, MAX_RADIUS);
 
-            // [핵심 변경점] 이중 for문 제거 -> 단일 for문으로 direction 방향만 탐색
+            // [마법의 수학 1] Pre-Shrink 값에 따라 가져올 Mipmap 레벨(LOD)을 계산합니다.
+            // 1.0 -> 0, 2.0 -> 1, 4.0 -> 2, 8.0 -> 3 (점점 더 뭉개진 베이스 이미지를 가져옴)
+            float mipLevel = max(0.0, log2(uPreShrink));
+
             for (float i = -MAX_RADIUS; i <= MAX_RADIUS; i += 1.0) {
                 if (abs(i) > limit) continue;
 
-                // direction이 (1,0)이면 가로로만, (0,1)이면 세로로만 offset이 발생합니다.
-                vec2 offset = direction * i * tex_offset;
+                // [마법의 수학 2] 픽셀 탐색 보폭(Offset)을 Pre-Shrink 만큼 강제로 벌립니다!
+                // uPreShrink가 8이면, 물리적으로 8배 더 먼 곳까지 뻗어나가 거대한 안개를 만듭니다.
+                vec2 offset = direction * i * tex_offset * uPreShrink;
                 
-                // 거리는 단순히 i의 절대값
                 float weight = gaussian(abs(i), sigma);
 
-                // 텍스처 샘플링
-                vec4 texColor = texture2D(tDiffuse, vUv + offset);
+                // [마법의 수학 3] texture2D의 세 번째 인자(Bias)에 mipLevel을 넣어 
+                // 이미 축소/블러 처리된 안전한 픽셀 데이터를 가져옵니다.
+                vec4 texColor = texture2D(tDiffuse, vUv + offset, mipLevel);
 
-                // RGB 가중치
                 resultRGB += texColor.rgb * weight;
-                // Alpha 가중치
                 resultAlpha += texColor.a * weight;
-
                 total_weight += weight;
             }
 
-            // 최종 가중치로 정규화
             resultRGB /= total_weight;
             resultAlpha /= total_weight;
 
-            // Premultiplied Alpha 처리 (배경의 검은색 번짐 방지)
             gl_FragColor = vec4(resultRGB * resultAlpha, resultAlpha);
         }
     `

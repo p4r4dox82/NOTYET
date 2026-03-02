@@ -44,7 +44,6 @@ export function useShaderComparison(
 
     const LINE_RADIUS = 3;
     const CANVAS_SIZE = 1024;
-    const SHRINK_FACTOR = 1/8;
 
     // --- Overlay Canvas 설정 (드로잉 캔버스) ---
     const overlayCanvas = overlayCanvasRef.current;
@@ -71,306 +70,170 @@ export function useShaderComparison(
     renderer.toneMappingExposure = 1.0;
     rendererRef.current = renderer;
 
+    // =========================================================
+    // [핵심 추가] Composer가 사용할 렌더 타겟에 Mipmap 속성 켜기
+    // =========================================================
+    const renderTargetConfig = {
+        minFilter: THREE.LinearMipmapLinearFilter, // 👈 밉맵 필터 필수
+        magFilter: THREE.LinearFilter,
+        format: THREE.RGBAFormat,
+        generateMipmaps: true // 👈 패스가 끝날 때마다 밉맵을 새로 굽도록 지시!
+    };
+    const customRenderTarget = new THREE.WebGLRenderTarget(width, height, renderTargetConfig);
+
+    // 기본 생성 대신, 커스텀 타겟을 장착한 Composer 생성
+    const composer = new EffectComposer(renderer, customRenderTarget);
+
     // --- EffectComposer 설정 ---
-    const composer = new EffectComposer(renderer);
     composerRef.current = composer;
-    composer.setSize(width * SHRINK_FACTOR, height * SHRINK_FACTOR);
+    composer.setSize(width, height);
 
-    let mainScene, mainCamera, mainMaterial;
-    let noiseScene, rampScene, blurScene;
+    // =========================================================
+    // 1. 모든 노드(Scene)와 메모리(RenderTarget)를 1번만 생성합니다.
+    // =========================================================
+    let mainScene, mainCamera, mainMaterial; // 변수 선언
+    mainCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-    // Shader Mode에 따라 다른 setup
+    // [Node 1, 2] Noise와 Ramp
+    const noiseSetup = createNoiseScene();
+    const rampSetup = createRampScene();
+
+    // [Node 3] Average 합성
+    const compAvgSetup = createCompScene();
+
+    // [Node 4] Blur 원본 이미지
+    const blurSetup = createBlurScene();
+
+    // 텍스처 로드 (1번만)
+    const horseshoeTexture = new THREE.TextureLoader().load('./assets/textures/HorseShoe_fill.png', (tex) => {
+        tex.generateMipmaps = true;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        blurSetup.material.uniforms.tDiffuse.value = tex;
+    });
+
+    // RenderTargets (도화지들 - 메모리 절약을 위해 공용으로 씁니다)
+    const rtConfig = { format: THREE.RGBAFormat, type: THREE.UnsignedByteType, minFilter: THREE.LinearFilter };
+    const noiseRT = new THREE.WebGLRenderTarget(width, height, rtConfig);
+    const rampRT = new THREE.WebGLRenderTarget(width, height, rtConfig);
+    const compAvgRT = new THREE.WebGLRenderTarget(width, height, rtConfig);
+
+    // [핵심] 단일 EffectComposer 생성 및 패스 미리 세팅
+    // 패스들을 미리 만들어둡니다. (씬은 나중에 할당)
+    const dummyScene = new THREE.Scene();
+    const renderPass = new RenderPass(dummyScene, mainCamera); // 더미 씬으로 시작
+    const blurHPass = new ShaderPass(BlurShader);
+    blurHPass.uniforms.direction.value.set(1.0, 0.0);
+    blurHPass.uniforms.filterSize.value = 32.0;
+    blurHPass.uniforms.resolution.value.set(width, height);
+
+    const blurVPass = new ShaderPass(BlurShader);
+    blurVPass.uniforms.direction.value.set(0.0, 1.0);
+    blurVPass.uniforms.filterSize.value = 32.0;
+    blurVPass.uniforms.resolution.value.set(width, height);
+
+    const compMultPass = new ShaderPass(CompShader_multiply); // Mode 5용
+
+    // =========================================================
+    // 2. 모드에 따라 렌더링 파이프라인 조립 (Routing)
+    // =========================================================
+
+    // (초기화) 매번 모드가 바뀔 때마다 Composer 패스를 비워줍니다.
+    composer.passes = []; 
+    renderPass.renderToScreen = false;
+    blurVPass.renderToScreen = false;
+    compMultPass.renderToScreen = false;
+
     switch(shaderMode) {
-      case 1: // Noise Shader
-        const noiseSetup = createNoiseScene();
-        mainScene = noiseSetup.scene;
-        mainCamera = noiseSetup.camera;
-        mainMaterial = noiseSetup.material;
-        const renderPass1 = new RenderPass(mainScene, mainCamera);
-        renderPass1.renderToScreen = true;
-        composer.addPass(renderPass1);
-        break;
+        case 1: // Noise
+            renderPass.scene = noiseSetup.scene;
+            renderPass.renderToScreen = true;
+            composer.addPass(renderPass);
+            mainScene = noiseSetup.scene;
+            mainCamera = noiseSetup.camera;
+            mainMaterial = noiseSetup.material;
+            break;
 
-      case 2: // Ramp Shader
-        const rampSetup = createRampScene();
-        mainScene = rampSetup.scene;
-        mainCamera = rampSetup.camera;
-        mainMaterial = rampSetup.material;
-        const renderPass2 = new RenderPass(mainScene, mainCamera);
-        renderPass2.renderToScreen = true;
-        composer.addPass(renderPass2);
-        break;
+        case 2: // Ramp
+            renderPass.scene = rampSetup.scene;
+            renderPass.renderToScreen = true;
+            composer.addPass(renderPass);
+            mainScene = rampSetup.scene;
+            mainCamera = rampSetup.camera;
+            mainMaterial = rampSetup.material;
+            break;
 
-      case 3: // CompShader_average (Noise + Ramp 합성)
-        // Noise와 Ramp를 두 개의 RenderTarget으로 렌더링 후 합성
-        noiseScene = createNoiseScene();
-        rampScene = createRampScene();
-        
-        // RenderTarget 설정 개선 (WebGL 에러 방지)
-        const rtConfig3 = {
-          format: THREE.RGBAFormat,
-          type: THREE.UnsignedByteType,
-          minFilter: THREE.LinearFilter,
-          magFilter: THREE.LinearFilter,
-          generateMipmaps: false,
-          depthBuffer: false,
-          stencilBuffer: false
-        };
-        
-        const noiseRT3 = new THREE.WebGLRenderTarget(
-          width * SHRINK_FACTOR,
-          height * SHRINK_FACTOR,
-          rtConfig3
-        );
-        const rampRT3 = new THREE.WebGLRenderTarget(
-          width * SHRINK_FACTOR,
-          height * SHRINK_FACTOR,
-          rtConfig3
-        );
+        case 3: // Comp Average (Noise + Ramp)
+            // 렌더 타겟에 각각 그리기
+            renderer.setRenderTarget(noiseRT);
+            renderer.render(noiseSetup.scene, mainCamera);
+            renderer.setRenderTarget(rampRT);
+            renderer.render(rampSetup.scene, mainCamera);
+            renderer.setRenderTarget(null);
 
-        // Noise 렌더링
-        renderer.setRenderTarget(noiseRT3);
-        renderer.render(noiseScene.scene, noiseScene.camera);
-        
-        // Ramp 렌더링
-        renderer.setRenderTarget(rampRT3);
-        renderer.render(rampScene.scene, rampScene.camera);
-        
-        // CompShader_average 합성 (ShaderMaterial 직접 생성)
-        renderer.setRenderTarget(null);
-        mainCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-        const compAvgScene3 = new THREE.Scene();
-        const compAvgMaterial3 = new THREE.ShaderMaterial({
-          uniforms: {
-            tDiffuse1: { value: noiseRT3.texture },
-            tDiffuse2: { value: rampRT3.texture },
-          },
-          vertexShader: `
-            varying vec2 vUv;
-            void main() {
-              vUv = uv;
-              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-          `,
-          fragmentShader: `
-            uniform sampler2D tDiffuse1;
-            uniform sampler2D tDiffuse2;
-            varying vec2 vUv;
+            // 결과물을 Average Material에 꽂아줌
+            compAvgSetup.material.uniforms.tDiffuse1.value = noiseRT.texture;
+            compAvgSetup.material.uniforms.tDiffuse2.value = rampRT.texture;
 
-            void main() {
-              vec4 texture1 = texture2D(tDiffuse1, vUv);
-              vec4 texture2 = texture2D(tDiffuse2, vUv);
-              vec4 result = mix(texture1, texture2, 0.5);
-              gl_FragColor = result;
-            }
-          `
-        });
-        const compAvgMesh3 = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), compAvgMaterial3);
-        compAvgScene3.add(compAvgMesh3);
-        mainScene = compAvgScene3;
-        mainMaterial = compAvgMaterial3;
-        const compAvgPass3 = new RenderPass(compAvgScene3, mainCamera);
-        compAvgPass3.renderToScreen = true;
-        composer.addPass(compAvgPass3);
-        break;
+            renderPass.scene = compAvgSetup.scene;
+            renderPass.renderToScreen = true;
+            composer.addPass(renderPass);
+            mainScene = compAvgSetup.scene;
+            mainCamera = compAvgSetup.camera;
+            mainMaterial = compAvgSetup.material;
+            break;
 
-      case 4: // Blur Shader with HorseShoe_fill.png
-        const blurSetup = createBlurScene();
-        mainScene = blurSetup.scene;
-        mainCamera = blurSetup.camera;
-        mainMaterial = blurSetup.material;
+        case 4: // Blur 
+            // 1. 원본 씬 추가
+            renderPass.scene = blurSetup.scene;
+            composer.addPass(renderPass);
+            
+            // 2. 블러 패스 추가
+            composer.addPass(blurHPass);
+            blurVPass.renderToScreen = true; // 여기서 출력!
+            composer.addPass(blurVPass);
+            mainScene = blurSetup.scene;
+            mainCamera = blurSetup.camera;
+            mainMaterial = blurSetup.material;
+            break;
 
-        const horseshoeTexture = new THREE.TextureLoader().load(
-          './assets/textures/HorseShoe_fill.png',
-          (tex) => {
-            tex.generateMipmaps = false;
-            tex.minFilter = THREE.LinearFilter;
-            tex.magFilter = THREE.LinearFilter;
-            tex.needsUpdate = true;
-          },
-          undefined,
-          () => console.error('Failed to load HorseShoe_fill.png')
-        );
+        case 5: // Multiply (Case 3 + Case 4 의 결합!!!)
+            // 1. [Case 3의 로직 재사용] Noise와 Ramp를 합쳐서 compAvgRT에 구워둠
+            renderer.setRenderTarget(noiseRT);
+            renderer.render(noiseSetup.scene, mainCamera);
+            renderer.setRenderTarget(rampRT);
+            renderer.render(rampSetup.scene, mainCamera);
+            
+            compAvgSetup.material.uniforms.tDiffuse1.value = noiseRT.texture;
+            compAvgSetup.material.uniforms.tDiffuse2.value = rampRT.texture;
+            
+            renderer.setRenderTarget(compAvgRT);
+            renderer.render(compAvgSetup.scene, mainCamera);
+            renderer.setRenderTarget(null);
 
-        mainMaterial.uniforms.tDiffuse.value = horseshoeTexture;
-        mainMaterial.uniforms.resolution.value.set(width, height);
-        mainMaterial.uniforms.filterSize.value = 320.0;
+            // 2. [Case 4의 파이프라인 재사용] 원본 씬 -> 블러
+            renderPass.scene = blurSetup.scene;
+            composer.addPass(renderPass);
+            composer.addPass(blurHPass);
+            blurVPass.renderToScreen = false; // 여기서 renderToScreen 안 함!
+            composer.addPass(blurVPass);
 
-        const blurRenderPass = new RenderPass(mainScene, mainCamera);
-        composer.addPass(blurRenderPass);
+            // 3. [최종 결합] 블러 결과물(tDiffuse) * Average 텍스처(tDiffuse2)
+            compMultPass.uniforms.tDiffuse2.value = compAvgRT.texture;
+            compMultPass.renderToScreen = true; // 최종 출력!
+            composer.addPass(compMultPass);
+            mainScene = blurSetup.scene;
+            mainCamera = blurSetup.camera;
+            mainMaterial = blurSetup.material;
+            break;
 
-        const blurHPass = new ShaderPass(BlurShader, 'tDiffuse');
-        blurHPass.uniforms.direction.value.set(1.0, 0.0);
-        blurHPass.uniforms.filterSize.value = 320.0;
-        blurHPass.uniforms.resolution.value.set(width, height);
-        composer.addPass(blurHPass);
-
-        const blurVPass = new ShaderPass(BlurShader, 'tDiffuse');
-        blurVPass.uniforms.direction.value.set(0.0, 1.0);
-        blurVPass.uniforms.filterSize.value = 320.0;
-        blurVPass.uniforms.resolution.value.set(width, height);
-        blurVPass.renderToScreen = true;
-        composer.addPass(blurVPass);
-        break;
-
-      case 5: // CompShader_multiply (Blur + CompAverage 합성)
-        // =========================================================
-        // Mode 3 결과 (Noise + Ramp 평균) - 수동 렌더링 유지 (브랜치 A)
-        // =========================================================
-        mainCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-
-        const noiseScene5 = createNoiseScene();
-        const rampScene5 = createRampScene();
-
-        const shrinkWidth = width * SHRINK_FACTOR;
-        const shrinkHeight = height * SHRINK_FACTOR;
-
-        const rtConfig = {
-            format: THREE.RGBAFormat,
-            type: THREE.UnsignedByteType,
-            minFilter: THREE.LinearFilter,
-            magFilter: THREE.LinearFilter,
-            generateMipmaps: false,
-            depthBuffer: false,
-            stencilBuffer: false
-        };
-
-        const noiseRT5 = new THREE.WebGLRenderTarget(shrinkWidth, shrinkHeight, rtConfig);
-        const rampRT5 = new THREE.WebGLRenderTarget(shrinkWidth, shrinkHeight, rtConfig);
-        const compAvgRT5 = new THREE.WebGLRenderTarget(shrinkWidth, shrinkHeight, rtConfig);
-
-        const compAvgScene5 = new THREE.Scene();
-        const compAvgMaterial5 = new THREE.ShaderMaterial({
-            uniforms: {
-                tDiffuse1: { value: noiseRT5.texture },
-                tDiffuse2: { value: rampRT5.texture },
-            },
-            vertexShader: `
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform sampler2D tDiffuse1;
-                uniform sampler2D tDiffuse2;
-                varying vec2 vUv;
-                void main() {
-                    vec4 texture1 = texture2D(tDiffuse1, vUv);
-                    vec4 texture2 = texture2D(tDiffuse2, vUv);
-                    vec4 result = mix(texture1, texture2, 0.5);
-                    gl_FragColor = result;
-                }
-            `
-        });
-        const compAvgMesh5 = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), compAvgMaterial5);
-        compAvgScene5.add(compAvgMesh5);
-
-
-        // =========================================================
-        // Mode 4 결과 (Blur + Multiply 합성) - EffectComposer로 압축
-        // =========================================================
-        const blurSetup5 = createBlurScene();
-        blurSetup5.material.uniforms.resolution.value.set(shrinkWidth, shrinkHeight);
-
-        // [핵심 1] 커스텀 타겟을 만들어 Composer에 주입 (Pre-Shrink 메모리 최적화)
-        const composerTarget = new THREE.WebGLRenderTarget(shrinkWidth, shrinkHeight, rtConfig);
-        const composer5 = new EffectComposer(renderer, composerTarget);
-
-        // 1단계: 원본 말굽 텍스처 렌더링 패스
-        const basePass5 = new RenderPass(blurSetup5.scene, blurSetup5.camera);
-        composer5.addPass(basePass5);
-
-        // 2단계: 가로 블러 패스
-        const blurHPass5 = new ShaderPass(BlurShader);
-        blurHPass5.uniforms.direction.value.set(1.0, 0.0);
-        blurHPass5.uniforms.filterSize.value = 32.0; // 성능을 위해 현실적인 수치로 조정
-        blurHPass5.uniforms.resolution.value.set(shrinkWidth, shrinkHeight);
-        composer5.addPass(blurHPass5);
-
-        // 3단계: 세로 블러 패스
-        const blurVPass5 = new ShaderPass(BlurShader);
-        blurVPass5.uniforms.direction.value.set(0.0, 1.0);
-        blurVPass5.uniforms.filterSize.value = 32.0;
-        blurVPass5.uniforms.resolution.value.set(shrinkWidth, shrinkHeight);
-        composer5.addPass(blurVPass5);
-
-        // 4단계: CompShader_multiply 합성 패스
-        // [주의] EffectComposer의 ShaderPass는 이전 패스의 결과를 무조건 'tDiffuse'라는 이름으로 넘겨줍니다.
-        // 따라서 기존 tDiffuse1 이름을 tDiffuse로 변경해야 합니다.
-        const compMultShaderDef = {
-            uniforms: {
-                tDiffuse: { value: null }, // Composer가 이전 패스(BlurV) 결과를 자동으로 꽂아줌
-                tDiffuse2: { value: null }, // 나중에 할당 (RenderTarget 텍스처는 cloneUniforms 불가)
-            },
-            vertexShader: `
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform sampler2D tDiffuse;  // 블러 처리된 말굽
-                uniform sampler2D tDiffuse2; // Noise + Ramp 배경
-                varying vec2 vUv;
-                void main() {
-                    vec4 blurColor = texture2D(tDiffuse, vUv);
-                    vec4 bgColor = texture2D(tDiffuse2, vUv);
-                    
-                    // Multiply 합성
-                    vec4 result = blurColor * bgColor;
-                    gl_FragColor = result;
-                }
-            `
-        };
-        const compMultPass5 = new ShaderPass(compMultShaderDef);
-        compMultPass5.uniforms.tDiffuse2.value = compAvgRT5.texture; // ShaderPass 생성 후 할당
-        compMultPass5.renderToScreen = true; // 최종 결과를 화면에 출력
-        composer5.addPass(compMultPass5);
-
-        // =========================================================
-        // 비동기 텍스처 로딩 후 브랜치 A 렌더링 실행
-        // =========================================================
-        const horseshoeTexture5 = new THREE.TextureLoader().load(
-            './assets/textures/HorseShoe_fill.png',
-            (tex) => {
-                tex.generateMipmaps = false;
-                tex.minFilter = THREE.LinearFilter;
-                tex.magFilter = THREE.LinearFilter;
-                tex.needsUpdate = true;
-
-                blurSetup5.material.uniforms.tDiffuse.value = tex;
-
-                // 브랜치 A 렌더링 (단 한 번만 실행되거나, animate 안에서 실행)
-                renderer.setRenderTarget(noiseRT5);
-                renderer.render(noiseScene5.scene, noiseScene5.camera);
-
-                renderer.setRenderTarget(rampRT5);
-                renderer.render(rampScene5.scene, rampScene5.camera);
-
-                renderer.setRenderTarget(compAvgRT5);
-                renderer.render(compAvgScene5, mainCamera);
-
-                // [중요] 타겟을 해제하고 화면에 그릴 준비
-                renderer.setRenderTarget(null);
-            }
-        );
-
-        // Update composerRef to use the new composer5
-        composerRef.current = composer5;
-
-        break;
-
-      default:
-        const defaultSetup = createNoiseScene();
-        mainScene = defaultSetup.scene;
-        mainCamera = defaultSetup.camera;
-        mainMaterial = defaultSetup.material;
-        const defaultPass = new RenderPass(mainScene, mainCamera);
-        defaultPass.renderToScreen = true;
-        composer.addPass(defaultPass);
+        default:
+            renderPass.scene = noiseSetup.scene;
+            renderPass.renderToScreen = true;
+            composer.addPass(renderPass);
+            mainScene = noiseSetup.scene;
+            mainCamera = noiseSetup.camera;
+            mainMaterial = noiseSetup.material;
     }
 
     shaderSceneRef.current = mainScene;
