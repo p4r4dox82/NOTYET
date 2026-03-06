@@ -3,9 +3,11 @@ import {
   NoiseShader,
   RampShader,
   BlurShader,
+  SimpleTextureShader,
   MultiplyShader,
   CompShader_average,
   CompShader_multiply,
+  CompShader_over,
 } from '../constants/shaders';
 
 /**
@@ -45,13 +47,20 @@ export function createRampScene() {
 }
 
 /**
- * BlurShader (가우시안 블러)
+ * BlurShader (단순 텍스처 렌더링)
  * 반환 후 외부에서 material.uniforms.tDiffuse.value 에 텍스처를 주입하세요.
+ * 실제 블러는 ShaderPass에서 수행됩니다.
  */
 export function createBlurScene() {
-  return createShaderScene(BlurShader);
+  return createShaderScene(SimpleTextureShader);
 }
-
+/**
+ * BlurLineScene (단순 텍스처 렌더링 - HorseShoe_line.png용)
+ * shader 6에서 사용, 텍스처만 렌더링하고 실제 블러는 ShaderPass에서 적용
+ */
+export function createBlurLineScene() {
+  return createShaderScene(SimpleTextureShader);
+}
 /**
  * MultiplyShader (노이즈 × 드로잉 합성)
  * 반환 후 외부에서 tDiffuse1 / tDiffuse2 uniforms을 주입하세요.
@@ -74,4 +83,12 @@ export function createCompScene() {
  */
 export function createCompScene_multiply() {
   return createShaderScene(CompShader_multiply);
+}
+
+/**
+ * CompShader_over (Foreground Over Background 합성)
+ * 반환 후 외부에서 tForeground / tBackground uniforms을 주입하세요.
+ */
+export function createCompOverScene() {
+  return createShaderScene(CompShader_over);
 }

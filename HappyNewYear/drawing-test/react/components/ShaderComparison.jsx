@@ -48,6 +48,18 @@ export function ShaderComparison() {
         >
           5: Comp Multiply
         </button>
+        <button 
+          className={shaderMode === 6 ? styles.buttonActive : styles.button}
+          onClick={() => setShaderMode(6)}
+        >
+          6: Blur Line
+        </button>
+        <button 
+          className={shaderMode === 7 ? styles.buttonActive : styles.button}
+          onClick={() => setShaderMode(7)}
+        >
+          7: Comp Over
+        </button>
       </div>
 
       <div className={styles.mainContainer} ref={containerRef}>

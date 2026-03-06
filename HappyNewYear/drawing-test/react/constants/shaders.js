@@ -355,7 +355,7 @@ export const CompShader_average = {
             
             // 곱셈 합성
             vec4 result = mix(texture1, texture2, 0.5); // 0.5는 단순히 두 텍스처의 평균을 내는 가중치입니다.
-            gl_FragColor = result;
+            gl_FragColor = result * 1.8;
         }
     `
 };
@@ -462,6 +462,28 @@ export const MultiplyShader = {
     `
 };
 
+// SimpleTextureShader - 단순히 텍스처를 렌더링하는 셰이더 (블러 없음)
+export const SimpleTextureShader = {
+    uniforms: {
+        tDiffuse: { value: null },
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        varying vec2 vUv;
+
+        void main() {
+            gl_FragColor = texture2D(tDiffuse, vUv);
+        }
+    `
+};
+
 // BlurShader - 고품질 분리가능한 1D 가우시안 블러
 export const BlurShader = {
     uniforms: {
@@ -534,6 +556,47 @@ export const BlurShader = {
             resultAlpha /= total_weight;
 
             gl_FragColor = vec4(resultRGB * resultAlpha, resultAlpha);
+        }
+    `
+};
+
+export const CompShader_over = {
+    uniforms: {
+        tForeground: { value: null }, // TD Input 1 (위에 덮어질 이미지)
+        tBackground: { value: null }, // TD Input 2 (바닥에 깔릴 배경 이미지)
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tForeground;
+        uniform sampler2D tBackground;
+        
+        varying vec2 vUv;
+
+        void main() {
+            // 1. 두 텍스처의 픽셀 정보를 가져옵니다.
+            vec4 fg = texture2D(tForeground, vUv);
+            vec4 bg = texture2D(tBackground, vUv);
+
+            // 2. [Over 합성 공식] 최종 투명도(Alpha) 계산
+            // 위 레이어가 불투명하면 1.0, 투명하면 아래 레이어의 알파를 따름
+            float finalAlpha = fg.a + bg.a * (1.0 - fg.a);
+
+            vec3 finalColor = vec3(0.0);
+            
+            // 3. 투명도가 0이 아닐 때만 색상 계산 (0으로 나누는 에러 방지)
+            if (finalAlpha > 0.0) {
+                // (위 색상 * 위 알파) + (아래 색상 * 아래 알파 * (1 - 위 알파)) / 최종 알파
+                finalColor = (fg.rgb * fg.a + bg.rgb * bg.a * (1.0 - fg.a)) / finalAlpha;
+            }
+
+            // 4. 최종 결과 출력
+            gl_FragColor = vec4(finalColor, finalAlpha);
         }
     `
 };

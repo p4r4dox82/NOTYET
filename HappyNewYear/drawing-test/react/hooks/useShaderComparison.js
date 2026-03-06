@@ -7,10 +7,21 @@ import {
   createNoiseScene,
   createRampScene,
   createBlurScene,
+  createBlurLineScene,
   createCompScene,
   createCompScene_multiply,
+  createCompOverScene,
 } from "../utils/shaderScenes";
-import { BlurShader, CompShader_multiply } from "../constants/shaders";
+import { BlurShader, SimpleTextureShader, CompShader_multiply } from "../constants/shaders";
+
+// HMR (Hot Module Replacement) 개선을 위한 설정
+if (import.meta.hot) {
+  // 셰이더 파일 변경 감지 및 자동 새로고침
+  import.meta.hot.accept('../constants/shaders', () => {
+    console.log('🔄 Shader files updated - reloading...');
+    window.location.reload(); // 완전한 페이지 새로고침으로 셰이더 변경사항 반영
+  });
+}
 
 /**
  * Shader Mode에 따라 다양한 shader 렌더링하는 커스텀 훅
@@ -75,6 +86,7 @@ export function useShaderComparison(
     // [핵심 추가] Composer가 사용할 렌더 타겟에 Mipmap 속성 켜기
     // =========================================================
     const renderTargetConfig = {
+        generateMipmaps: true,
         minFilter: THREE.LinearMipmapLinearFilter, // 👈 밉맵 필터 필수
         magFilter: THREE.LinearFilter,
         format: THREE.RGBAFormat,
@@ -105,12 +117,16 @@ export function useShaderComparison(
     // [Node 4] Blur 원본 이미지
     const blurSetup = createBlurScene();
 
+    // [Node 6] Blur Line 이미지 (다른 파라미터)
+    const blurLineSetup = createBlurLineScene();
+
     // 모든 material들을 ref에 저장 (animate 루프에서 모두 업데이트하기 위해)
     allMaterialsRef.current = {
       noise: noiseSetup.material,
       ramp: rampSetup.material,
       compAvg: compAvgSetup.material,
       blur: blurSetup.material,
+      blurLine: blurLineSetup.material,
     };
 
     // 텍스처 로드 (1번만)
@@ -119,6 +135,14 @@ export function useShaderComparison(
         tex.minFilter = THREE.LinearMipmapLinearFilter;
         tex.magFilter = THREE.LinearFilter;
         blurSetup.material.uniforms.tDiffuse.value = tex;
+    });
+
+    // HorseShoe_line.png 텍스처 로드 (shader 6용)
+    const horseshoeLineTexture = new THREE.TextureLoader().load('./assets/textures/HorseShoe_line.png', (tex) => {
+        tex.generateMipmaps = true;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        blurLineSetup.material.uniforms.tDiffuse.value = tex;
     });
 
     // RenderTargets (도화지들 - 메모리 절약을 위해 공용으로 씁니다)
@@ -131,19 +155,119 @@ export function useShaderComparison(
     // 패스들을 미리 만들어둡니다. (씬은 나중에 할당)
     const dummyScene = new THREE.Scene();
     const renderPass = new RenderPass(dummyScene, mainCamera); // 더미 씬으로 시작
-    const blurHPass = new ShaderPass(BlurShader);
-    blurHPass.uniforms.direction.value.set(1.0, 0.0);
-    blurHPass.uniforms.filterSize.value = 32.0;
-    blurHPass.uniforms.uPreShrink.value = 8.0; // 👈 TD의 Pre-Shrink 값 설정
-    blurHPass.uniforms.resolution.value.set(width, height);
+    
+    // Shader 4용 블러 패스 (강한 블러)
+    const blur4HPass = new ShaderPass(BlurShader);
+    blur4HPass.uniforms.direction.value.set(1.0, 0.0);
+    blur4HPass.uniforms.filterSize.value = 32.0;
+    blur4HPass.uniforms.uPreShrink.value = 6.0;
+    blur4HPass.uniforms.resolution.value.set(width, height);
 
-    const blurVPass = new ShaderPass(BlurShader);
-    blurVPass.uniforms.direction.value.set(0.0, 1.0);
-    blurVPass.uniforms.filterSize.value = 32.0;
-    blurHPass.uniforms.uPreShrink.value = 8.0; // 👈 TD의 Pre-Shrink 값 설정
-    blurVPass.uniforms.resolution.value.set(width, height);
+    const blur4VPass = new ShaderPass(BlurShader);
+    blur4VPass.uniforms.direction.value.set(0.0, 1.0);
+    blur4VPass.uniforms.filterSize.value = 32.0;
+    blur4VPass.uniforms.uPreShrink.value = 6.0;
+    blur4VPass.uniforms.resolution.value.set(width, height);
+
+    // Shader 6용 블러 패스 (약한 블러)
+    const blur6HPass = new ShaderPass(BlurShader);
+    blur6HPass.uniforms.direction.value.set(1.0, 0.0);
+    blur6HPass.uniforms.filterSize.value = 24.0;
+    blur6HPass.uniforms.uPreShrink.value = 3.0;
+    blur6HPass.uniforms.resolution.value.set(width, height);
+
+    const blur6VPass = new ShaderPass(BlurShader);
+    blur6VPass.uniforms.direction.value.set(0.0, 1.0);
+    blur6VPass.uniforms.filterSize.value = 24.0;
+    blur6VPass.uniforms.uPreShrink.value = 3.0;
+    blur6VPass.uniforms.resolution.value.set(width, height);
 
     const compMultPass = new ShaderPass(CompShader_multiply); // Mode 5용
+
+    // =========================================================
+    // [만능 렌더링 씬] Mode 7의 직접 렌더링 파이프라인용
+    // =========================================================
+    const processScene = new THREE.Scene();
+    const processMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+    processScene.add(processMesh);
+
+    // 헬퍼: 입력 텍스처 -> 쉐이더 연산 -> 타겟에 저장
+    const applyShader = (material, inputTexture, outputTarget) => {
+        if (material.uniforms.tDiffuse) {
+            material.uniforms.tDiffuse.value = inputTexture;
+        }
+        processMesh.material = material;
+        renderer.setRenderTarget(outputTarget);
+        renderer.render(processScene, mainCamera);
+    };
+
+    const rtConf = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat };
+
+    // Case 5 (Fill) 용 도화지
+    const fillBaseRT   = new THREE.WebGLRenderTarget(width, height, rtConf);
+    const fillHRT      = new THREE.WebGLRenderTarget(width, height, rtConf);
+    const fillVRT      = new THREE.WebGLRenderTarget(width, height, rtConf);
+    const case5FinalRT = new THREE.WebGLRenderTarget(width, height, rtConf);
+
+    // Case 6 (Line) 용 도화지
+    const lineBaseRT   = new THREE.WebGLRenderTarget(width, height, rtConf);
+    const lineHRT      = new THREE.WebGLRenderTarget(width, height, rtConf);
+    const case6FinalRT = new THREE.WebGLRenderTarget(width, height, rtConf);
+
+    // Mode 7용 직접 블러 Material (강한 블러 - Fill)
+    const blurFillHMaterial = new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.clone(BlurShader.uniforms),
+        vertexShader: BlurShader.vertexShader,
+        fragmentShader: BlurShader.fragmentShader,
+    });
+    blurFillHMaterial.uniforms.direction.value.set(1.0, 0.0);
+    blurFillHMaterial.uniforms.filterSize.value = 32.0;
+    blurFillHMaterial.uniforms.uPreShrink.value = 6.0;
+    blurFillHMaterial.uniforms.resolution.value.set(width, height);
+
+    const blurFillVMaterial = new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.clone(BlurShader.uniforms),
+        vertexShader: BlurShader.vertexShader,
+        fragmentShader: BlurShader.fragmentShader,
+    });
+    blurFillVMaterial.uniforms.direction.value.set(0.0, 1.0);
+    blurFillVMaterial.uniforms.filterSize.value = 32.0;
+    blurFillVMaterial.uniforms.uPreShrink.value = 6.0;
+    blurFillVMaterial.uniforms.resolution.value.set(width, height);
+
+    // Mode 7용 직접 블러 Material (약한 블러 - Line)
+    const blurLineHMaterial = new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.clone(BlurShader.uniforms),
+        vertexShader: BlurShader.vertexShader,
+        fragmentShader: BlurShader.fragmentShader,
+    });
+    blurLineHMaterial.uniforms.direction.value.set(1.0, 0.0);
+    blurLineHMaterial.uniforms.filterSize.value = 24.0;
+    blurLineHMaterial.uniforms.uPreShrink.value = 3.0;
+    blurLineHMaterial.uniforms.resolution.value.set(width, height);
+
+    const blurLineVMaterial = new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.clone(BlurShader.uniforms),
+        vertexShader: BlurShader.vertexShader,
+        fragmentShader: BlurShader.fragmentShader,
+    });
+    blurLineVMaterial.uniforms.direction.value.set(0.0, 1.0);
+    blurLineVMaterial.uniforms.filterSize.value = 24.0;
+    blurLineVMaterial.uniforms.uPreShrink.value = 3.0;
+    blurLineVMaterial.uniforms.resolution.value.set(width, height);
+
+    // Mode 7용 Multiply Material + Scene
+    const compMultMaterial_7 = new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.clone(CompShader_multiply.uniforms),
+        vertexShader: CompShader_multiply.vertexShader,
+        fragmentShader: CompShader_multiply.fragmentShader,
+    });
+    const compMultMesh_7 = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), compMultMaterial_7);
+    const compMultScene_7 = new THREE.Scene();
+    compMultScene_7.add(compMultMesh_7);
+
+    // Mode 7용 CompOver 씬 변수
+    let compOverSetup = null;
 
     // =========================================================
     // 2. 모드에 따라 렌더링 파이프라인 조립 (Routing)
@@ -152,7 +276,8 @@ export function useShaderComparison(
     // (초기화) 매번 모드가 바뀔 때마다 Composer 패스를 비워줍니다.
     composer.passes = []; 
     renderPass.renderToScreen = false;
-    blurVPass.renderToScreen = false;
+    blur4VPass.renderToScreen = false;
+    blur6VPass.renderToScreen = false;
     compMultPass.renderToScreen = false;
 
     switch(shaderMode) {
@@ -188,34 +313,57 @@ export function useShaderComparison(
             break;
 
         case 4: // Blur 
-            // 1. 원본 씬 추가
+            // 원본 씬 추가
             renderPass.scene = blurSetup.scene;
             composer.addPass(renderPass);
             
-            // 2. 블러 패스 추가
-            composer.addPass(blurHPass);
-            composer.addPass(blurVPass);
-            blurVPass.renderToScreen = true; // 여기서 출력!
+            // 블러 패스 추가 (강한 블러)
+            composer.addPass(blur4HPass);
+            composer.addPass(blur4VPass);
+            blur4VPass.renderToScreen = true; // 여기서 출력!
             mainScene = blurSetup.scene;
             mainCamera = blurSetup.camera;
             mainMaterial = blurSetup.material;
             break;
 
         case 5: // Multiply (Case 3 + Case 4 의 결합!!!)
-            // 2. [Case 4의 파이프라인 재사용] 원본 씬 -> 블러
+            // [Case 4의 파이프라인 재사용] 원본 씬 -> 블러
             renderPass.scene = blurSetup.scene;
             composer.addPass(renderPass);
-            composer.addPass(blurHPass);
-            blurVPass.renderToScreen = false; // 여기서 renderToScreen 안 함!
-            composer.addPass(blurVPass);
+            composer.addPass(blur4HPass);
+            blur4VPass.renderToScreen = false; // 여기서 renderToScreen 안 함!
+            composer.addPass(blur4VPass);
 
-            // 3. [최종 결합] 블러 결과물(tDiffuse) * Average 텍스처(tDiffuse2)
+            // [최종 결합] 블러 결과물(tDiffuse) * Average 텍스처(tDiffuse2)
             compMultPass.uniforms.tDiffuse2.value = compAvgRT.texture;
             compMultPass.renderToScreen = true; // 최종 출력!
             composer.addPass(compMultPass);
             mainScene = blurSetup.scene;
             mainCamera = blurSetup.camera;
             mainMaterial = blurSetup.material;
+            break;
+
+        case 6: // Blur Line (HorseShoe_line.png with different parameters)
+            // 원본 씬을 blurLineSetup으로 설정
+            renderPass.scene = blurLineSetup.scene;
+            composer.addPass(renderPass);
+            
+            // 블러 패스 추가 (약한 블러) 
+            composer.addPass(blur6HPass);
+            composer.addPass(blur6VPass);
+            blur6VPass.renderToScreen = true; // 여기서 출력!
+            mainScene = blurLineSetup.scene;
+            mainCamera = blurLineSetup.camera;
+            mainMaterial = blurLineSetup.material;
+            break;
+
+        case 7: // CompShader_over (Mode 5 결과 Over Mode 6 결과) - 직접 렌더링
+            compOverSetup = createCompOverScene();
+            allMaterialsRef.current.compOver = compOverSetup.material;
+            // 모든 렌더링은 animate 루프에서 직접 수행 (composer 미사용)
+            mainScene = compOverSetup.scene;
+            mainCamera = compOverSetup.camera;
+            mainMaterial = compOverSetup.material;
             break;
 
         default:
@@ -255,7 +403,7 @@ export function useShaderComparison(
 
       Object.values(allMaterialsRef.current).forEach(updateMaterialUniforms);
 
-      // shaderMode가 3 또는 5인 경우, 매 프레임 노이즈와 램프를 리렌더링
+      // shaderMode가 3, 5인 경우, 매 프레임 노이즈와 램프를 리렌더링
       if (shaderMode === 3 || shaderMode === 5) {
         renderer.setRenderTarget(noiseRT);
         renderer.render(noiseSetup.scene, mainCamera);
@@ -273,7 +421,42 @@ export function useShaderComparison(
         }
       }
 
-      composer.render();
+      // Mode 7: 직접 렌더링 파이프라인
+      if (shaderMode === 7 && compOverSetup) {
+        // [1] 배경 (Noise + Ramp) 굽기 -> compAvgRT
+        renderer.setRenderTarget(noiseRT);
+        renderer.render(noiseSetup.scene, mainCamera);
+        renderer.setRenderTarget(rampRT);
+        renderer.render(rampSetup.scene, mainCamera);
+        compAvgSetup.material.uniforms.tDiffuse1.value = noiseRT.texture;
+        compAvgSetup.material.uniforms.tDiffuse2.value = rampRT.texture;
+        renderer.setRenderTarget(compAvgRT);
+        renderer.render(compAvgSetup.scene, mainCamera);
+
+        // [2] Case 5 브랜치 (Fill Blur + Multiply)
+        renderer.setRenderTarget(fillBaseRT);
+        renderer.render(blurSetup.scene, mainCamera);
+        applyShader(blurFillHMaterial, fillBaseRT.texture, fillHRT);
+        applyShader(blurFillVMaterial, fillHRT.texture, fillVRT);
+        compMultMaterial_7.uniforms.tDiffuse.value = fillVRT.texture;
+        compMultMaterial_7.uniforms.tDiffuse2.value = compAvgRT.texture;
+        renderer.setRenderTarget(case5FinalRT);
+        renderer.render(compMultScene_7, mainCamera);
+
+        // [3] Case 6 브랜치 (Line Blur)
+        renderer.setRenderTarget(lineBaseRT);
+        renderer.render(blurLineSetup.scene, mainCamera);
+        applyShader(blurLineHMaterial, lineBaseRT.texture, lineHRT);
+        applyShader(blurLineVMaterial, lineHRT.texture, case6FinalRT);
+
+        // [4] 최종 Over 합성 (화면에 출력)
+        compOverSetup.material.uniforms.tForeground.value = case6FinalRT.texture;
+        compOverSetup.material.uniforms.tBackground.value = case5FinalRT.texture;
+        renderer.setRenderTarget(null);
+        renderer.render(compOverSetup.scene, mainCamera);
+      } else {
+        composer.render();
+      }
     };
 
     animate();
@@ -393,6 +576,14 @@ export function useShaderComparison(
       if (composerRef.current) {
         composerRef.current.dispose();
       }
+
+      // Dispose mode 7 render targets and materials
+      fillBaseRT.dispose(); fillHRT.dispose(); fillVRT.dispose(); case5FinalRT.dispose();
+      lineBaseRT.dispose(); lineHRT.dispose(); case6FinalRT.dispose();
+      blurFillHMaterial.dispose(); blurFillVMaterial.dispose();
+      blurLineHMaterial.dispose(); blurLineVMaterial.dispose();
+      compMultMaterial_7.dispose();
+      if (compOverSetup) compOverSetup.material.dispose();
 
       // Dispose renderer
       if (rendererRef.current) {
