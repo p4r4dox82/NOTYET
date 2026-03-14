@@ -26,19 +26,21 @@ if (import.meta.hot) {
 /**
  * Shader Mode에 따라 다양한 shader 렌더링하는 커스텀 훅
  * @param {number} shaderMode - 1: Noise, 2: Ramp, 3: CompAverage, 4: Blur, 5: CompMultiply
+ * @param {React.MutableRefObject} allMaterialsRef - 외부에서 전달받은 allMaterialsRef (optional)
  */
 export function useShaderComparison(
   containerRef,
   canvasRef,
   overlayCanvasRef,
   shaderMode = 1,
+  externalAllMaterialsRef = null,
 ) {
   const rendererRef = useRef(null);
   const composerRef = useRef(null);
   const shaderSceneRef = useRef(null);
   const shaderCameraRef = useRef(null);
   const materialRef = useRef(null);
-  const allMaterialsRef = useRef({}); // 모든 material들을 추적
+  const allMaterialsRef = externalAllMaterialsRef || useRef({}); // 외부에서 전달받으면 사용, 아니면 내부에서 생성
   const stateRef = useRef({
     isDrawing: false,
     lastX: 0,
@@ -120,17 +122,26 @@ export function useShaderComparison(
     // [Node 6] Blur Line 이미지 (다른 파라미터)
     const blurLineSetup = createBlurLineScene();
 
-    // 모든 material들을 ref에 저장 (animate 루프에서 모두 업데이트하기 위해)
+    // 모든 material들과 blur passes를 ref에 저장
+    // blur passes는 실제 blur uniform을 제어하기 위해 필요함
+    const blurPasses = {
+      blur4H: null,
+      blur4V: null,
+      blur6H: null,
+      blur6V: null,
+    };
+
     allMaterialsRef.current = {
       noise: noiseSetup.material,
       ramp: rampSetup.material,
       compAvg: compAvgSetup.material,
       blur: blurSetup.material,
       blurLine: blurLineSetup.material,
+      blurPasses: blurPasses,
     };
 
     // 텍스처 로드 (1번만)
-    const horseshoeTexture = new THREE.TextureLoader().load('./assets/textures/HorseShoe_fill.png', (tex) => {
+    const horseshoeTexture = new THREE.TextureLoader().load('./images/shaders/HorseShoe_fill.png', (tex) => {
         tex.generateMipmaps = true;
         tex.minFilter = THREE.LinearMipmapLinearFilter;
         tex.magFilter = THREE.LinearFilter;
@@ -138,7 +149,7 @@ export function useShaderComparison(
     });
 
     // HorseShoe_line.png 텍스처 로드 (shader 6용)
-    const horseshoeLineTexture = new THREE.TextureLoader().load('./assets/textures/HorseShoe_line.png', (tex) => {
+    const horseshoeLineTexture = new THREE.TextureLoader().load('./images/shaders/HorseShoe_line.png', (tex) => {
         tex.generateMipmaps = true;
         tex.minFilter = THREE.LinearMipmapLinearFilter;
         tex.magFilter = THREE.LinearFilter;
@@ -146,7 +157,12 @@ export function useShaderComparison(
     });
 
     // RenderTargets (도화지들 - 메모리 절약을 위해 공용으로 씁니다)
-    const rtConfig = { format: THREE.RGBAFormat, type: THREE.UnsignedByteType, minFilter: THREE.LinearFilter };
+    const rtConfig = { 
+        format: THREE.RGBAFormat, 
+        type: THREE.UnsignedByteType, 
+        minFilter: THREE.LinearMipmapLinearFilter,
+        generateMipmaps: true
+    };
     const noiseRT = new THREE.WebGLRenderTarget(width, height, rtConfig);
     const rampRT = new THREE.WebGLRenderTarget(width, height, rtConfig);
     const compAvgRT = new THREE.WebGLRenderTarget(width, height, rtConfig);
@@ -182,6 +198,12 @@ export function useShaderComparison(
     blur6VPass.uniforms.uPreShrink.value = 3.0;
     blur6VPass.uniforms.resolution.value.set(width, height);
 
+    // blur passes를 ref에 저장 (외부에서 uniform 조절용)
+    blurPasses.blur4H = blur4HPass;
+    blurPasses.blur4V = blur4VPass;
+    blurPasses.blur6H = blur6HPass;
+    blurPasses.blur6V = blur6VPass;
+
     const compMultPass = new ShaderPass(CompShader_multiply); // Mode 5용
 
     // =========================================================
@@ -201,7 +223,12 @@ export function useShaderComparison(
         renderer.render(processScene, mainCamera);
     };
 
-    const rtConf = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat };
+    const rtConf = { 
+        minFilter: THREE.LinearMipmapLinearFilter, 
+        magFilter: THREE.LinearFilter, 
+        format: THREE.RGBAFormat,
+        generateMipmaps: true
+    };
 
     // Case 5 (Fill) 용 도화지
     const fillBaseRT   = new THREE.WebGLRenderTarget(width, height, rtConf);
@@ -221,7 +248,7 @@ export function useShaderComparison(
         fragmentShader: BlurShader.fragmentShader,
     });
     blurFillHMaterial.uniforms.direction.value.set(1.0, 0.0);
-    blurFillHMaterial.uniforms.filterSize.value = 32.0;
+    blurFillHMaterial.uniforms.filterSize.value = 16.0;
     blurFillHMaterial.uniforms.uPreShrink.value = 6.0;
     blurFillHMaterial.uniforms.resolution.value.set(width, height);
 
@@ -231,7 +258,7 @@ export function useShaderComparison(
         fragmentShader: BlurShader.fragmentShader,
     });
     blurFillVMaterial.uniforms.direction.value.set(0.0, 1.0);
-    blurFillVMaterial.uniforms.filterSize.value = 32.0;
+    blurFillVMaterial.uniforms.filterSize.value = 16.0;
     blurFillVMaterial.uniforms.uPreShrink.value = 6.0;
     blurFillVMaterial.uniforms.resolution.value.set(width, height);
 
@@ -242,7 +269,7 @@ export function useShaderComparison(
         fragmentShader: BlurShader.fragmentShader,
     });
     blurLineHMaterial.uniforms.direction.value.set(1.0, 0.0);
-    blurLineHMaterial.uniforms.filterSize.value = 24.0;
+    blurLineHMaterial.uniforms.filterSize.value = 14.0;
     blurLineHMaterial.uniforms.uPreShrink.value = 3.0;
     blurLineHMaterial.uniforms.resolution.value.set(width, height);
 
@@ -252,7 +279,7 @@ export function useShaderComparison(
         fragmentShader: BlurShader.fragmentShader,
     });
     blurLineVMaterial.uniforms.direction.value.set(0.0, 1.0);
-    blurLineVMaterial.uniforms.filterSize.value = 24.0;
+    blurLineVMaterial.uniforms.filterSize.value = 14.0;
     blurLineVMaterial.uniforms.uPreShrink.value = 3.0;
     blurLineVMaterial.uniforms.resolution.value.set(width, height);
 
@@ -379,29 +406,26 @@ export function useShaderComparison(
     shaderCameraRef.current = mainCamera;
     materialRef.current = mainMaterial;
 
-    // --- 단일 애니메이션 루프 ---
-    clockRef.current = new THREE.Clock();
+    // --- 단일 애니메이션 루프 (Timer 기반) ---
+    clockRef.current = performance.now();
 
     const animate = () => {
       animationIdRef.current = requestAnimationFrame(animate);
-      const elapsed = clockRef.current.getElapsedTime();
+      const elapsed = (performance.now() - clockRef.current) / 1000;
       const composer = composerRef.current;
 
       if (!composer) return;
 
-      // 모든 material들의 uniforms 업데이트
+      // 모든 material들의 uniforms 업데이트 (blurPasses 제외)
       const updateMaterialUniforms = (material) => {
-        if (material && material.uniforms) {
-          if (material.uniforms.uTime) {
-            material.uniforms.uTime.value = elapsed;
-          }
-          if (material.uniforms.uPhase) {
-            material.uniforms.uPhase.value = elapsed * 0.5;
-          }
-        }
+        
       };
 
-      Object.values(allMaterialsRef.current).forEach(updateMaterialUniforms);
+      Object.keys(allMaterialsRef.current).forEach((key) => {
+        if (key !== 'blurPasses') {
+          updateMaterialUniforms(allMaterialsRef.current[key]);
+        }
+      });
 
       // shaderMode가 3, 5인 경우, 매 프레임 노이즈와 램프를 리렌더링
       if (shaderMode === 3 || shaderMode === 5) {
@@ -450,7 +474,7 @@ export function useShaderComparison(
         applyShader(blurLineVMaterial, lineHRT.texture, case6FinalRT);
 
         // [4] 최종 Over 합성 (화면에 출력)
-        // compOverSetup.material.uniforms.tForeground.value = case6FinalRT.texture;
+        compOverSetup.material.uniforms.tForeground.value = case6FinalRT.texture;
         compOverSetup.material.uniforms.tBackground.value = case5FinalRT.texture;
         renderer.setRenderTarget(null);
         renderer.render(compOverSetup.scene, mainCamera);
