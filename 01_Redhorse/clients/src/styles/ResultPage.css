@@ -10,9 +10,16 @@
     top: 40px;
     left: 80px;
     width: 366.742px;
-    height: 550.114px;
-    transform: rotate(15deg);
-    background: #D9D9D9;
+    height: 519.114px;
+    /* transform: rotate(15deg); */
+    background: #000000;
+    overflow: hidden;
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
   }
   .button_container {
     position: absolute;

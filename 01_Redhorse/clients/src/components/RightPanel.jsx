@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { useRightPanel } from '../hooks/useRightPanel';
+import { useFootPrint } from '../hooks/useFootPrint';
 import styles from './RightPanel.module.css';
 
 /**
@@ -10,7 +10,7 @@ export function RightPanel({ normalMapTexture, combinedRenderTarget, renderer })
   const canvasRef = useRef(null);
   const rightPanelRef = useRef(null);
 
-  rightPanelRef.current = useRightPanel(containerRef, canvasRef, normalMapTexture);
+  rightPanelRef.current = useFootPrint(containerRef, canvasRef, normalMapTexture);
 
   // normalMapTexture가 변경될 때만 updateNormalMap 호출
   useEffect(() => {

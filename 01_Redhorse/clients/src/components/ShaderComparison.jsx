@@ -28,6 +28,26 @@ export const ShaderComparison = forwardRef(({ defaultMode = 1, showButtons = tru
       setShaderMode(mode);
     },
     getAllMaterials: () => allMaterialsRef.current,
+    getCanvasImage: async () => {
+      // WebGL 렌더링이 완료될 때까지 대기
+      return new Promise((resolve) => {
+        if (!canvasRef.current) {
+          resolve(null);
+          return;
+        }
+        
+        // 한 프레임 대기 후 캡처 (렌더링 완료 보장)
+        requestAnimationFrame(() => {
+          try {
+            const imageData = canvasRef.current.toDataURL('image/png');
+            resolve(imageData);
+          } catch (error) {
+            console.error('Failed to capture canvas:', error);
+            resolve(null);
+          }
+        });
+      });
+    },
   }), [shaderMode]);
 
   return (

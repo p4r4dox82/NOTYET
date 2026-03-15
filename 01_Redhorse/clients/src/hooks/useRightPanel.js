@@ -6,15 +6,18 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 
 /**
- * 우측 패널 (3D 시각화) 관리 커스텀 훅
+ * 발자국 (3D 시각화) 관리 커스텀 훅
  */
-export function useRightPanel(containerRef, canvasRef, normalMapTexture) {
+export function useFootPrint(containerRef, canvasRef, normalMapTexture) {
   const sceneRef = useRef(null);
   const rendererRef = useRef(null);
   const composerRef = useRef(null);
   const meshRef = useRef(null);
   const materialRef = useRef(null);
   const originalNormalMapRef = useRef(null);
+  const mainLightRef = useRef(null);
+  const fillLightRef = useRef(null);
+  const ambientLightRef = useRef(null);
 
   useEffect(() => {
     if (!containerRef.current || !canvasRef.current) return;
@@ -48,29 +51,37 @@ export function useRightPanel(containerRef, canvasRef, normalMapTexture) {
 
     // --- Textures ---
     const textureLoader = new THREE.TextureLoader();
-    const path = './assets/textures/Snow001_4K-JPG/Snow001_4K-JPG_';
+    const path = './images/shaders/Snow001_4K-JPG/Snow001_4K-JPG_';
 
     let bgBaseMap = null;
     let bgRoughnessMap = null;
     let bgNormalMap = null;
 
-    // 텍스처 로드 시도 (패스가 없을 수 있으므로 기본값 지정)
-    try {
-      bgBaseMap = textureLoader.load(`${path}Color.jpg`);
-      bgRoughnessMap = textureLoader.load(`${path}Roughness.jpg`);
-      bgNormalMap = textureLoader.load(`${path}NormalGL.jpg`);
-    } catch (e) {
-      console.warn('Snow texture not found, using default:', e);
-      // 기본 흰색 텍스처 생성
-      bgBaseMap = new THREE.Texture();
-      bgBaseMap.fillStyle = '#ffffff';
-      bgRoughnessMap = new THREE.Texture();
-      bgNormalMap = new THREE.Texture();
-    }
+    // 텍스처 로드 (에러 핸들러 포함)
+    bgBaseMap = textureLoader.load(
+      `${path}Color.jpg`,
+      undefined, // onLoad
+      undefined, // onProgress
+      (error) => console.warn('Color texture not found:', error)
+    );
+    bgRoughnessMap = textureLoader.load(
+      `${path}Roughness.jpg`,
+      undefined,
+      undefined,
+      (error) => console.warn('Roughness texture not found:', error)
+    );
+    bgNormalMap = textureLoader.load(
+      `${path}NormalGL.jpg`,
+      undefined,
+      undefined,
+      (error) => console.warn('Normal texture not found:', error)
+    );
 
     [bgBaseMap, bgRoughnessMap, bgNormalMap].forEach((tex) => {
-      tex.wrapS = THREE.ClampToEdgeWrapping;
-      tex.wrapT = THREE.ClampToEdgeWrapping;
+      if (tex) {
+        tex.wrapS = THREE.ClampToEdgeWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+      }
     });
 
     // 원본 노멀맵 저장
@@ -103,15 +114,15 @@ export function useRightPanel(containerRef, canvasRef, normalMapTexture) {
 
       displacementMap: displacementTexture,
       displacementScale: 1.5,
-      displacementBias: 0,
+      displacementBias: 1.5,
 
       roughness: 0.7,
-      metalness: 0.2,
+      metalness: 0.3,
 
       clearcoat: 1.0,
       clearcoatRoughness: 0.15,
 
-      opacity: 1,
+      opacity: 1.0,
       transparent: true,
     });
 
@@ -123,20 +134,23 @@ export function useRightPanel(containerRef, canvasRef, normalMapTexture) {
     scene.add(mesh);
 
     // --- Lighting ---
-    const mainLight = new THREE.PointLight(0xffffff, 1.8, 100);
-    mainLight.position.set(10, 3, 5);
+    const mainLight = new THREE.PointLight(0xffffff, 50.0, 100);
+    mainLight.position.set(0, 10, 10);
     mainLight.castShadow = true;
     mainLight.shadow.bias = -0.0001;
     scene.add(mainLight);
+    mainLightRef.current = mainLight;
 
     // Fill light (음영 부분을 밝히기)
-    const fillLight = new THREE.PointLight(0x6699ff, 0.8, 100);
-    fillLight.position.set(-8, 2, 3);
+    const fillLight = new THREE.PointLight(0x6699ff, 3.0, 100);
+    fillLight.position.set(0, 10, -8);
     scene.add(fillLight);
+    fillLightRef.current = fillLight;
 
     // Ambient light (전체 밝기)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
     scene.add(ambientLight);
+    ambientLightRef.current = ambientLight;
 
     // --- Animation Loop ---
     let animationId;
@@ -192,7 +206,7 @@ export function useRightPanel(containerRef, canvasRef, normalMapTexture) {
       if (materialRef.current && newNormalMapTexture && originalNormalMapRef.current) {
         // 새 노멀맵과 기존 노멀맵을 blend
         const blendedTexture = blendNormalMaps(originalNormalMapRef.current, newNormalMapTexture);
-        // materialRef.current.normalMap = blendedTexture;
+        materialRef.current.normalMap = blendedTexture;
         materialRef.current.displacementMap = blendedTexture;
         materialRef.current.needsUpdate = true;
         console.log('Normal maps blended successfully');
@@ -213,19 +227,58 @@ function blendNormalMaps(baseTexture, newTexture) {
   const ctx = canvas.getContext('2d');
 
   // 기본 텍스처 그리기 (Snow normal map)
-  if (baseTexture && baseTexture.image) {
-    ctx.drawImage(baseTexture.image, 0, 0, width, height);
-  }
+  // if (baseTexture && baseTexture.image) {
+  //   console.log('Drawing baseTexture.image');
+  //   ctx.drawImage(baseTexture.image, 0, 0, width, height);
+  // } else {
+  //   console.warn('baseTexture.image not available');
+  // }
 
   // 새로운 노멀맵 추가 (lighten blend mode로 합치기)
-  ctx.globalCompositeOperation = 'lighten';
+  ctx.globalCompositeOperation = 'overlay';
   if (newTexture && newTexture instanceof THREE.CanvasTexture) {
     const sourceCanvas = newTexture.source.data;
     if (sourceCanvas instanceof HTMLCanvasElement) {
       ctx.drawImage(sourceCanvas, 0, 0, width, height);
     }
+  } else {
+    console.warn('newTexture is not CanvasTexture or invalid');
   }
 
-  return new THREE.CanvasTexture(canvas);
+  const resultTexture = new THREE.CanvasTexture(canvas);
+  console.log('Blended texture created:', resultTexture);
+  return resultTexture;
+}
+
+function blendDisplacement(baseTexture, newTexture) {
+  const width = 1024;
+  const height = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  // 기본 텍스처 그리기 (Snow normal map)
+  if (baseTexture && baseTexture.image) {
+    console.log('Drawing baseTexture.image');
+    ctx.drawImage(baseTexture.image, 0, 0, width, height);
+  } else {
+    console.warn('baseTexture.image not available');
+  }
+
+  // 새로운 노멀맵 추가 (lighten blend mode로 합치기)
+  ctx.globalCompositeOperation = 'overlay';
+  if (newTexture && newTexture instanceof THREE.CanvasTexture) {
+    const sourceCanvas = newTexture.source.data;
+    if (sourceCanvas instanceof HTMLCanvasElement) {
+      ctx.drawImage(sourceCanvas, 0, 0, width, height);
+    }
+  } else {
+    console.warn('newTexture is not CanvasTexture or invalid');
+  }
+
+  const resultTexture = new THREE.CanvasTexture(canvas);
+  console.log('Blended texture created:', resultTexture);
+  return resultTexture;
 }
 // 블렌딩 어떻게 되는 지 확인 필요 < 지금 새로운 형태로 더해지는 느낌임. 

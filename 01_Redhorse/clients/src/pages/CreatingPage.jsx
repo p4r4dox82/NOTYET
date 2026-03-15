@@ -25,8 +25,13 @@ function CreatingPage() {
     console.log('hasDrawn state changed:', hasDrawn)
   }, [hasDrawn])
 
-  const navigateMakeButton = () => {
-    navigate('/rendering')
+  const navigateMakeButton = async () => {
+    // ShaderComparison의 캔버스 이미지를 route state로 전달
+    let canvasImage = null
+    if (shaderComparisonRef.current && shaderComparisonRef.current.getCanvasImage) {
+      canvasImage = await shaderComparisonRef.current.getCanvasImage()
+    }
+    navigate('/rendering', { state: { resultImage: canvasImage } })
   }
 
   // Drawing setup

@@ -1,16 +1,18 @@
 import '../styles/RenderingPage.css'
 import '../styles/App.css'
 import Logo from '../components/Logo'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 import { getImageURL } from '../utils/utils'
 
 function RenderingPage() {
     const [isHovered, setIsHovered] = useState(false)
     const navigate = useNavigate()
+    const location = useLocation()
+    const resultImage = location.state?.resultImage
 
     const navigateMakeButton = () => {
-        navigate('/result')
+        navigate('/result', { state: { resultImage } })
     }
     return (
         <div className="main_container" data-name="Twitter post - 9" data-node-id="110:3">

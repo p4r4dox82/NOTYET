@@ -1,3 +1,3 @@
 export { useLeftPanel } from './useLeftPanel';
-export { useRightPanel } from './useRightPanel';
+export { useFootPrint } from './useFootPrint';
 export { useShaderComparison } from './useShaderComparison';

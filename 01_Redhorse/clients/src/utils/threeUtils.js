@@ -14,7 +14,7 @@ export function heightToNormal(srcCanvas, dstContext, intensity) {
     const srcPixels = srcData.data;
     const dstPixels = dstData.data;
 
-    const offset = 2; 
+    const offset = 1; 
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -58,6 +58,7 @@ export function createNormalMapTexture(source, renderer, canvasWidth, canvasHeig
     let sourceCanvas = source;
     
     if (source instanceof THREE.WebGLRenderTarget) {
+        
         const rtWidth = 1024;
         const rtHeight = 1024;
         
