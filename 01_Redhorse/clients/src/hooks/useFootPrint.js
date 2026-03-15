@@ -204,7 +204,9 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
 
   return {
     updateNormalMap(newNormalMapTexture) {
+      console.log('asdfasdf', originalNormalMapRef.current)
       if (materialRef.current && newNormalMapTexture && originalNormalMapRef.current) {
+        console.log('qwerqwer', originalNormalMapRef.current)
         // 새 노멀맵 저장
         newNormalMapRef.current = newNormalMapTexture;
         // 새 노멀맵과 기존 노멀맵을 blend
@@ -332,10 +334,10 @@ function blendNormalMaps(baseTexture, newTexture, renderer) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   
-  // GPU에 즉시 업로드
-  if (renderer) {
-    renderer.initTexture(texture);
-  }
+  // // GPU에 즉시 업로드
+  // if (renderer) {
+  //   renderer.initTexture(texture);
+  // }
   
   console.log('Blended texture created:', texture);
   return texture;
