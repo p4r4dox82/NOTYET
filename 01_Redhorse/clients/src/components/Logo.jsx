@@ -1,7 +1,8 @@
+import React from 'react'
 import { useNavigate } from "react-router-dom"
 import { getImageURL } from '../utils/utils'
 
-function Logo({ color }) {
+const Logo = React.memo(function Logo({ color }) {
     const navigate = useNavigate()
 
     const navigateLogo = () => {
@@ -21,6 +22,6 @@ function Logo({ color }) {
             </div> */}
         </div>
     )
-}
+})
 
 export default Logo

@@ -18,7 +18,12 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    .draw_box {
+      width: 100%;
+      height: 100%;
+    }
     .text {
+      position: absolute;
       color: #FFF;
       text-align: center;
       font-family: Arial;
@@ -27,6 +32,15 @@
       font-weight: 400;
       line-height: 100%; /* 28px */
       letter-spacing: -1.4px;
+      overflow: hidden;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+      z-index: 10;
+    }
+    .text.hidden {
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
     }
   }
   .result_container {
@@ -38,6 +52,22 @@
       height: 331px;
       background-color: black;
     }
+    .text_container {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: end;
+      .instruction {
+        color: #000;
+        font-family: Arial;
+        font-size: 10px;
+        font-style: normal;
+        font-weight: 400;
+        line-height: 120%; /* 12px */
+        letter-spacing: -0.5px;
+        text-transform: uppercase;
+      }
+    }
     .make_btn {
       color: #000;
       text-align: right;
@@ -48,6 +78,7 @@
       line-height: 100%; /* 28px */
       letter-spacing: -4.48px;
       text-transform: uppercase;
+      padding-right: 4px;
     }
     .make_btn:hover {
       color: red; /* Point color - 빨간색 */

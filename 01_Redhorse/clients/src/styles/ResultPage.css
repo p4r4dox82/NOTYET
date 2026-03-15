@@ -10,9 +10,31 @@
     top: 40px;
     left: 80px;
     width: 366.742px;
-    height: 550.114px;
+    height: 519.114px;
     transform: rotate(15deg);
-    background: #D9D9D9;
+    background: #000000;
+    overflow: hidden;
+    .CardTextOverlay {
+      position: absolute;
+      top: 126px;
+      left: 63px;
+      pointer-events: none;
+      z-index: 1;
+      width: 236px;
+      height: 244px;
+    }
+    .sender_name {
+      position: absolute;
+      bottom: 120px;
+      left: 80px;
+      z-index: 2;
+      font-family: "TalkFile_tratatello";
+      font-size: 22px;
+      font-style: normal;
+      font-weight: 400;
+      line-height: 100%; /* 18px */
+      color: #de0000;
+    }
   }
   .button_container {
     position: absolute;

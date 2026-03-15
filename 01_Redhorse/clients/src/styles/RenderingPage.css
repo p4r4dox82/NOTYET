@@ -51,6 +51,8 @@
       line-height: 100%; /* 28px */
       letter-spacing: -4.48px;
       text-transform: uppercase;
+
+      transform: translateY(0.5px);
     }
     .result_btn {
       color: #000;
@@ -61,6 +63,7 @@
       line-height: 100%; /* 28px */
       letter-spacing: -4.48px;
       text-transform: uppercase;
+      padding-right: 4.48px;
     }
     .result_btn:hover {
       color: red; /* Point color - 빨간색 */
