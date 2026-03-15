@@ -209,7 +209,7 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
         // 새 노멀맵 저장
         newNormalMapRef.current = newNormalMapTexture;
         // 새 노멀맵과 기존 노멀맵을 blend
-        const blendedTexture = blendNormalMapsRNM(originalNormalMapRef.current, newNormalMapTexture);
+        const blendedTexture = blendNormalMapsRNM(originalNormalMapRef.current, newNormalMapTexture, rendererRef.current);
         materialRef.current.normalMap = blendedTexture;
         materialRef.current.needsUpdate = true;
         console.log('Normal maps blended successfully');
@@ -225,50 +225,61 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
         console.log('Displacement maps blended successfully');
       }
     },
-    takeScreenshot(sender_name) {
-      return new Promise((resolve) => {
+    async takeScreenshot(sender_name) {
+      return new Promise(async (resolve) => {
         if (!canvasRef.current) {
           resolve(null);
           return;
         }
 
-        // 원본 canvas 크기
-        const sourceCanvas = canvasRef.current;
-        const width = sourceCanvas.width;
-        const height = sourceCanvas.height;
+        try {
+          // 원본 canvas 크기
+          const sourceCanvas = canvasRef.current;
+          const width = sourceCanvas.width;
+          const height = sourceCanvas.height;
 
-        const paddingTop = 126;
-        const paddingLeft = 63;
-        const targetWidth = 236;
-        const targetHeight = 244;
+          const paddingTop = 126;
+          const paddingLeft = 63;
+          const targetWidth = 236;
+          const targetHeight = 244;
 
-        const paddingBottom_text = 120;
-        const paddingLeft_text = 80;
+          const paddingBottom_text = 120;
+          const paddingLeft_text = 80;
 
-        const scale = 2;
+          const scale = 2;
 
-        const canvasWidth = width * scale;
-        const canvasHeight = height * scale;
+          const canvasWidth = width * scale;
+          const canvasHeight = height * scale;
 
-        // 2배 크기의 임시 canvas 생성
-        const scaledCanvas = document.createElement('canvas');
-        scaledCanvas.width = canvasWidth;
-        scaledCanvas.height = canvasHeight;
-        const ctx = scaledCanvas.getContext('2d');
+          // 2배 크기의 임시 canvas 생성
+          const scaledCanvas = document.createElement('canvas');
+          scaledCanvas.width = canvasWidth;
+          scaledCanvas.height = canvasHeight;
+          const ctx = scaledCanvas.getContext('2d');
 
-        // 2배로 스케일링하여 그리기
-        ctx.drawImage(sourceCanvas, 0, 0, canvasWidth, canvasHeight);
+          // canvas 초기화
+          ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+          ctx.beginPath();
 
-        // SVG 로드 및 그리기
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, paddingLeft * scale, paddingTop * scale, targetWidth * scale, targetHeight * scale);
+          // 2배로 스케일링하여 그리기
+          ctx.drawImage(sourceCanvas, 0, 0, canvasWidth, canvasHeight);
+
+          // SVG 로드 및 그리기
+          const img = new Image();
+          img.src = getImageURL('CardText.svg');
+          
+          try {
+            await img.decode(); // 이미지가 완전히 디코딩될 때까지 대기
+            ctx.drawImage(img, paddingLeft * scale, paddingTop * scale, targetWidth * scale, targetHeight * scale);
+          } catch (error) {
+            console.error('Failed to load/decode SVG:', error);
+          }
           
           // sender_name을 텍스트로 그리기
           if (sender_name) {
             ctx.font = `normal ${22 * scale}px TalkFile_tratatello`;
             ctx.fillStyle = '#de0000';
-            ctx.textAlign = 'middle';
+            ctx.textAlign = 'center';
             ctx.fillText(sender_name, paddingLeft_text * scale, canvasHeight - paddingBottom_text * scale - 5 * scale);
           }
           
@@ -276,24 +287,10 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
           scaledCanvas.toBlob((blob) => {
             resolve(blob);
           }, 'image/png');
-        };
-        img.onerror = () => {
-          console.error('Failed to load SVG');
-          
-          // sender_name을 텍스트로 그리기
-          if (sender_name) {
-            ctx.font = `normal ${22 * scale}px TalkFile_tratatello`;
-            ctx.fillStyle = '#de0000';
-            ctx.textAlign = 'middle';
-            ctx.fillText(sender_name, paddingLeft_text * scale, canvasHeight - paddingBottom_text * scale - 5 * scale);
-          }
-          
-          // SVG 로드 실패 시에도 canvas만 캡처
-          scaledCanvas.toBlob((blob) => {
-            resolve(blob);
-          }, 'image/png');
-        };
-        img.src = getImageURL('CardText.svg');
+        } catch (error) {
+          console.error('Screenshot error:', error);
+          resolve(null);
+        }
       });
     },
   };
@@ -302,13 +299,17 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
 /**
  * 두 노멀맵을 lighten blend mode로 합치기
  */
-function blendNormalMaps(baseTexture, newTexture) {
+function blendNormalMaps(baseTexture, newTexture, renderer) {
   const width = 1024;
   const height = 1024;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
+
+  // canvas 초기화
+  ctx.clearRect(0, 0, width, height);
+  ctx.beginPath();
 
   // 기본 텍스처 그리기 (Snow normal map)
   if (baseTexture && baseTexture.image) {
@@ -329,9 +330,16 @@ function blendNormalMaps(baseTexture, newTexture) {
     console.warn('newTexture is not CanvasTexture or invalid');
   }
 
-  const resultTexture = new THREE.CanvasTexture(canvas);
-  console.log('Blended texture created:', resultTexture);
-  return resultTexture;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  
+  // GPU에 즉시 업로드
+  if (renderer) {
+    renderer.initTexture(texture);
+  }
+  
+  console.log('Blended texture created:', texture);
+  return texture;
 }
 
 function getPixels(tex, width = 1024, height = 1024) {
@@ -347,7 +355,7 @@ function getPixels(tex, width = 1024, height = 1024) {
     return tCtx.getImageData(0, 0, width, height);
   }
 
-function blendNormalMapsWhiteout(baseTexture, newTexture) {
+function blendNormalMapsWhiteout(baseTexture, newTexture, renderer) {
   const width = 1024;
   const height = 1024;
   
@@ -356,8 +364,11 @@ function blendNormalMapsWhiteout(baseTexture, newTexture) {
   canvas.height = height;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-  // 1. 두 텍스처를 각각 임시 캔버스에 그려서 픽셀 데이터 추출
+  // canvas 초기화
+  ctx.clearRect(0, 0, width, height);
+  ctx.beginPath();
 
+  // 1. 두 텍스처를 각각 임시 캔버스에 그려서 픽셀 데이터 추출
   const baseData = getPixels(baseTexture);
   const newData = getPixels(newTexture);
   const resultData = ctx.createImageData(width, height);
@@ -380,7 +391,9 @@ function blendNormalMapsWhiteout(baseTexture, newTexture) {
 
     // 정규화 (Normalization)
     const len = Math.sqrt(rx * rx + ry * ry + rz * rz) || 1.0;
-    rx /= len; ry /= len; rz /= len;
+    rx /= len;
+    ry /= len;
+    rz /= len;
 
     // [-1, 1] -> [0, 255] 범위로 복구
     resultData.data[i] = (rx + 1.0) * 127.5;
@@ -390,15 +403,28 @@ function blendNormalMapsWhiteout(baseTexture, newTexture) {
   }
 
   ctx.putImageData(resultData, 0, 0);
-  return new THREE.CanvasTexture(canvas);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  
+  // GPU에 즉시 업로드
+  if (renderer) {
+    renderer.initTexture(texture);
+  }
+  
+  return texture;
 }
 
-function blendNormalMapsRNM(baseTexture, newTexture) {
+function blendNormalMapsRNM(baseTexture, newTexture, renderer) {
   const width = 1024;
   const height = 1024;
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = height;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  // canvas 초기화
+  ctx.clearRect(0, 0, width, height);
+  ctx.beginPath();
 
   // (getPixels 함수는 위와 동일하므로 생략하거나 공통 사용 가능)
   const baseData = getPixels(baseTexture);
@@ -430,7 +456,9 @@ function blendNormalMapsRNM(baseTexture, newTexture) {
     let rz = g.z * factor - f.z;
 
     const len = Math.sqrt(rx * rx + ry * ry + rz * rz) || 1.0;
-    rx /= len; ry /= len; rz /= len;
+    rx /= len;
+    ry /= len;
+    rz /= len;
 
     resultData.data[i] = (rx + 1.0) * 127.5;
     resultData.data[i + 1] = (ry + 1.0) * 127.5;
@@ -439,5 +467,13 @@ function blendNormalMapsRNM(baseTexture, newTexture) {
   }
 
   ctx.putImageData(resultData, 0, 0);
-  return new THREE.CanvasTexture(canvas);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  
+  // GPU에 즉시 업로드
+  if (renderer) {
+    renderer.initTexture(texture);
+  }
+  
+  return texture;
 }
