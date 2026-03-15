@@ -207,11 +207,16 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
       if (materialRef.current && newNormalMapTexture && originalNormalMapRef.current) {
         // 새 노멀맵 저장
         newNormalMapRef.current = newNormalMapTexture;
-        // 새 노멀맵과 기존 노멀맵을 blend
-        const blendedTexture = blendNormalMaps(originalNormalMapRef.current, newNormalMapTexture, rendererRef.current);
-        materialRef.current.normalMap = blendedTexture;
-        materialRef.current.needsUpdate = true;
-        console.log('Normal maps blended successfully');
+        // 새 노멀맵과 기존 노멀맵을 blend (비동기 처리)
+        blendNormalMapsRNM(originalNormalMapRef.current, newNormalMapTexture, rendererRef.current)
+          .then((blendedTexture) => {
+            materialRef.current.normalMap = blendedTexture;
+            materialRef.current.needsUpdate = true;
+            console.log('Normal maps blended successfully');
+          })
+          .catch((error) => {
+            console.error('Error blending normal maps:', error);
+          });
       }
     },
     updateOriginalMap(newOriginalMapTexture) {
@@ -413,7 +418,7 @@ function blendNormalMapsWhiteout(baseTexture, newTexture, renderer) {
   return texture;
 }
 
-function blendNormalMapsRNM(baseTexture, newTexture, renderer) {
+async function blendNormalMapsRNM(baseTexture, newTexture, renderer) {
   const width = 1024;
   const height = 1024;
   const canvas = document.createElement('canvas');
@@ -425,44 +430,54 @@ function blendNormalMapsRNM(baseTexture, newTexture, renderer) {
   ctx.clearRect(0, 0, width, height);
   ctx.beginPath();
 
-  // (getPixels 함수는 위와 동일하므로 생략하거나 공통 사용 가능)
   const baseData = getPixels(baseTexture);
   const newData = getPixels(newTexture);
   const resultData = ctx.createImageData(width, height);
 
-  for (let i = 0; i < baseData.data.length; i += 4) {
-    // n1 (Base)와 n2 (Detail) 벡터 추출
-    const n1 = {
-      x: (baseData.data[i] / 127.5) - 1.0,
-      y: (baseData.data[i + 1] / 127.5) - 1.0,
-      z: (baseData.data[i + 2] / 127.5) - 1.0
-    };
-    const n2 = {
-      x: (newData.data[i] / 127.5) - 1.0,
-      y: (newData.data[i + 1] / 127.5) - 1.0,
-      z: (newData.data[i + 2] / 127.5) - 1.0
-    };
+  // 청크 단위로 처리 (렌더링 중간에 계산 양보)
+  const chunkSize = 65536; // 약 512x512 픽셀 = 131072 바이트 = 32768 개의 픽셀 데이터
+  const totalPixels = baseData.data.length;
 
-    // RNM 공식 적용
-    const g = { x: n1.x, y: n1.y, z: n1.z + 1.0 };
-    const f = { x: -n2.x, y: -n2.y, z: n2.z };
-    
-    const dotGF = g.x * f.x + g.y * f.y + g.z * f.z;
-    const factor = dotGF / g.z;
+  for (let startIndex = 0; startIndex < totalPixels; startIndex += chunkSize) {
+    const endIndex = Math.min(startIndex + chunkSize, totalPixels);
 
-    let rx = g.x * factor - f.x;
-    let ry = g.y * factor - f.y;
-    let rz = g.z * factor - f.z;
+    for (let i = startIndex; i < endIndex; i += 4) {
+      // n1 (Base)와 n2 (Detail) 벡터 추출
+      const n1 = {
+        x: (baseData.data[i] / 127.5) - 1.0,
+        y: (baseData.data[i + 1] / 127.5) - 1.0,
+        z: (baseData.data[i + 2] / 127.5) - 1.0
+      };
+      const n2 = {
+        x: (newData.data[i] / 127.5) - 1.0,
+        y: (newData.data[i + 1] / 127.5) - 1.0,
+        z: (newData.data[i + 2] / 127.5) - 1.0
+      };
 
-    const len = Math.sqrt(rx * rx + ry * ry + rz * rz) || 1.0;
-    rx /= len;
-    ry /= len;
-    rz /= len;
+      // RNM 공식 적용
+      const g = { x: n1.x, y: n1.y, z: n1.z + 1.0 };
+      const f = { x: -n2.x, y: -n2.y, z: n2.z };
+      
+      const dotGF = g.x * f.x + g.y * f.y + g.z * f.z;
+      const factor = dotGF / g.z;
 
-    resultData.data[i] = (rx + 1.0) * 127.5;
-    resultData.data[i + 1] = (ry + 1.0) * 127.5;
-    resultData.data[i + 2] = (rz + 1.0) * 127.5;
-    resultData.data[i + 3] = 255;
+      let rx = g.x * factor - f.x;
+      let ry = g.y * factor - f.y;
+      let rz = g.z * factor - f.z;
+
+      const len = Math.sqrt(rx * rx + ry * ry + rz * rz) || 1.0;
+      rx /= len;
+      ry /= len;
+      rz /= len;
+
+      resultData.data[i] = (rx + 1.0) * 127.5;
+      resultData.data[i + 1] = (ry + 1.0) * 127.5;
+      resultData.data[i + 2] = (rz + 1.0) * 127.5;
+      resultData.data[i + 3] = 255;
+    }
+
+    // 렌더링이 일어나도록 양보
+    await new Promise(resolve => setTimeout(resolve, 0));
   }
 
   ctx.putImageData(resultData, 0, 0);
