@@ -97,20 +97,6 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
     originalNormalMapRef.current = bgNormalMap;
     originalDisplacementMapRef.current = bgNormalMap;
 
-    // --- HDRI 환경맵 로드 (옵션) ---
-    try {
-      const hdrLoader = new HDRLoader();
-      hdrLoader.load('./images/shaders/0_hdri/snowy_cemetery_4k.hdr', (texture) => {
-        const pmremGenerator = new THREE.PMREMGenerator(renderer);
-        const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-        scene.background = envMap;
-        scene.environment = envMap;
-        pmremGenerator.dispose();
-      });
-    } catch (e) {
-      console.warn('HDRI not found:', e);
-    }
-
     // --- Material ---
     // normalMapTexture가 없으면 기본값 사용
     const displayNormalMap = normalMapTexture || bgNormalMap;
