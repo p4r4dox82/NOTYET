@@ -100,7 +100,7 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
     // --- HDRI 환경맵 로드 (옵션) ---
     try {
       const hdrLoader = new HDRLoader();
-      hdrLoader.load('./assets/textures/0_hdri/snowy_cemetery_4k.hdr', (texture) => {
+      hdrLoader.load('./images/shaders/0_hdri/snowy_cemetery_4k.hdr', (texture) => {
         const pmremGenerator = new THREE.PMREMGenerator(renderer);
         const envMap = pmremGenerator.fromEquirectangular(texture).texture;
         scene.background = envMap;
