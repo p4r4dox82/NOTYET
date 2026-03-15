@@ -19,7 +19,6 @@ function ResultPage(imageQuery) {
   const footprintCanvasRef = useRef(null)
   const [normalMapTexture, setNormalMapTexture] = useState(null)
   const [originalTexture, setOriginalMapTexture] = useState(null)
-  const [lightIntensity, setLightIntensity] = useState(3)
   
   // useFootPrint 훅 사용
   const footprintMethods = useFootPrint(newYearCardRef, footprintCanvasRef, normalMapTexture, originalTexture)

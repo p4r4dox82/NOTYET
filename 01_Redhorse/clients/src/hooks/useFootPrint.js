@@ -125,8 +125,6 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
       opacity: 1.0,
       transparent: true,
 
-      flatShading: false,
-      // side: THREE.DoubleSide,
     });
 
     // --- Mesh ---
@@ -223,7 +221,6 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
         newDisplacementMapRef.current = newOriginalMapTexture;
         // const blendedTexture = blendNormalMapsRNM(originalDisplacementMapRef.current, newOriginalMapTexture);
         materialRef.current.displacementMap = newOriginalMapTexture; // 원본 맵 유지 (변경하지 않음)
-        console.log('Updated displacement map:', newOriginalMapTexture);
         materialRef.current.needsUpdate = true;
         console.log('Displacement maps blended successfully');
       }
