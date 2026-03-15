@@ -66,64 +66,62 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
     let bgRoughnessMap = null;
     let bgNormalMap = null;
 
-    // 텍스처 로드 (에러 핸들러 포함)
-    bgBaseMap = textureLoader.load(
-      `${path}Color.jpg`,
-      undefined, // onLoad
-      undefined, // onProgress
-      (error) => console.warn('Color texture not found:', error)
-    );
-    bgRoughnessMap = textureLoader.load(
-      `${path}Roughness.jpg`,
-      undefined,
-      undefined,
-      (error) => console.warn('Roughness texture not found:', error)
-    );
-    bgNormalMap = textureLoader.load(
-      `${path}NormalGL.jpg`,
-      undefined,
-      undefined,
-      (error) => console.warn('Normal texture not found:', error)
-    );
+    // 텍스처 로드를 Promise로 감싸기
+    const loadTextureAsync = (url) => {
+      return new Promise((resolve) => {
+        textureLoader.load(
+          url,
+          (texture) => {
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            resolve(texture);
+          },
+          undefined,
+          (error) => {
+            console.warn(`Texture not found: ${url}`, error);
+            resolve(null); // 에러 시에도 진행하도록
+          }
+        );
+      });
+    };
 
-    [bgBaseMap, bgRoughnessMap, bgNormalMap].forEach((tex) => {
-      if (tex) {
-        tex.wrapS = THREE.ClampToEdgeWrapping;
-        tex.wrapT = THREE.ClampToEdgeWrapping;
+    // 모든 텍스처를 비동기적으로 로드
+    Promise.all([
+      loadTextureAsync(`${path}Color.jpg`),
+      loadTextureAsync(`${path}Roughness.jpg`),
+      loadTextureAsync(`${path}NormalGL.jpg`)
+    ]).then(([color, roughness, normal]) => {
+      bgBaseMap = color;
+      bgRoughnessMap = roughness;
+      bgNormalMap = normal;
+
+      // 텍스처 로드 완료 후 Material 업데이트
+      if (materialRef.current) {
+        if (bgBaseMap) materialRef.current.map = bgBaseMap;
+        if (bgRoughnessMap) materialRef.current.roughnessMap = bgRoughnessMap;
+        if (bgNormalMap && !normalMapTexture) {
+          materialRef.current.normalMap = bgNormalMap;
+        }
+        materialRef.current.needsUpdate = true;
+        console.log('All textures loaded successfully');
       }
     });
 
-    // 원본 노멀맵 저장
+    // 원본 노멀맵 저장 (로드 완료 후 업데이트됨)
     originalNormalMapRef.current = bgNormalMap;
     originalDisplacementMapRef.current = bgNormalMap;
-
-    // --- Material ---
-    // normalMapTexture가 없으면 기본값 사용
-    const displayNormalMap = normalMapTexture || bgNormalMap;
-    const displacementTexture = originalTexture || bgNormalMap;
-
+    // normalMapTexture가 없으면 기본값 사용 (텍스처는 로드 후 업데이트)
     const material = new THREE.MeshPhysicalMaterial({
-      map: bgBaseMap,
-      normalMap: displayNormalMap,
       normalScale: new THREE.Vector2(4, 4),
-      roughnessMap: bgRoughnessMap,
-
-      displacementMap: displacementTexture,
       displacementScale: 1.5,
       displacementBias: 0.0,
-
-      aoMap: displacementTexture,
       aoMapIntensity: 1.5,
-
       roughness: 0.7,
       metalness: 0.05,
-
       clearcoat: 0.5,
       clearcoatRoughness: 1.0,
-
       opacity: 1.0,
       transparent: true,
-
     });
 
     // --- Mesh ---
