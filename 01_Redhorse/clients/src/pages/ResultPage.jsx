@@ -83,6 +83,23 @@ function ResultPage(imageQuery) {
 
   return (
     <div className="main_container" data-name="Twitter post - 9" data-node-id="110:3">
+      {/* 디버깅: 원본 이미지 표시 */}
+      {resultImage && (
+        <img 
+          src={resultImage} 
+          style={{
+            position: 'fixed',
+            top: 10,
+            left: 10,
+            width: '200px',
+            height: 'auto',
+            border: '2px solid red',
+            zIndex: 9999,
+            backgroundColor: 'white'
+          }}
+          alt="Debug: Original Image"
+        />
+      )}
       {/* 조명 밝기 슬라이더 */}
       <div className='layout_container'>
         <div className='NewYearCard' ref={newYearCardRef}>
