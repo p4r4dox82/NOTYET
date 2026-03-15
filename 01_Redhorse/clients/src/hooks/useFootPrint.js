@@ -101,7 +101,7 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
     // --- Material ---
     // normalMapTexture가 없으면 기본값 사용
     const displayNormalMap = normalMapTexture || bgNormalMap;
-    const displacementTexture = normalMapTexture || bgNormalMap;
+    const displacementTexture = originalTexture || bgNormalMap;
 
     const material = new THREE.MeshPhysicalMaterial({
       map: bgBaseMap,
