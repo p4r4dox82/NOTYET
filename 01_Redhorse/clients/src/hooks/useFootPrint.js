@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { getImageURL } from '../utils/utils';
 
 /**
  * 발자국 (3D 시각화) 관리 커스텀 훅
@@ -11,6 +12,7 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 export function useFootPrint(containerRef, canvasRef, normalMapTexture, originalTexture) {
   const sceneRef = useRef(null);
   const rendererRef = useRef(null);
+  const cameraRef = useRef(null);
   const composerRef = useRef(null);
   const meshRef = useRef(null);
   const materialRef = useRef(null);
@@ -36,10 +38,14 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
     const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
     camera.position.set(0, 0, 7);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+    const renderer = new THREE.WebGLRenderer({ 
+      antialias: true, 
+      canvas,
+      preserveDrawingBuffer: true // 스크린샷 캡처를 위해 필요
+    });
     renderer.setSize(Math.floor(width), Math.floor(height));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.8;
+    renderer.toneMappingExposure = 8.0;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -121,7 +127,7 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
       displacementBias: 0.0,
 
       aoMap: displacementTexture,
-      aoMapIntensity: 0.5,
+      aoMapIntensity: 1.5,
 
       roughness: 0.7,
       metalness: 0.05,
@@ -191,6 +197,7 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
     // 참조 저장
     sceneRef.current = scene;
     rendererRef.current = renderer;
+    cameraRef.current = camera;
     composerRef.current = composer;
     meshRef.current = mesh;
     materialRef.current = material;
@@ -234,14 +241,76 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
         console.log('Displacement maps blended successfully');
       }
     },
-    exportNormalMapImage() {
-      if (newNormalMapRef.current && newNormalMapRef.current instanceof THREE.CanvasTexture) {
-        const canvas = newNormalMapRef.current.source.data;
-        const link = document.createElement('a');
-        link.href = canvas.toDataURL('image/png');
-        link.download = 'footprint-normalmap.png';
-        link.click();
-      }
+    takeScreenshot(sender_name) {
+      return new Promise((resolve) => {
+        if (!canvasRef.current) {
+          resolve(null);
+          return;
+        }
+
+        // 원본 canvas 크기
+        const sourceCanvas = canvasRef.current;
+        const width = sourceCanvas.width;
+        const height = sourceCanvas.height;
+
+        const paddingTop = 126;
+        const paddingLeft = 63;
+        const targetWidth = 236;
+        const targetHeight = 244;
+
+        const paddingBottom_text = 120;
+        const paddingLeft_text = 80;
+
+        const scale = 2;
+
+        const canvasWidth = width * scale;
+        const canvasHeight = height * scale;
+
+        // 2배 크기의 임시 canvas 생성
+        const scaledCanvas = document.createElement('canvas');
+        scaledCanvas.width = canvasWidth;
+        scaledCanvas.height = canvasHeight;
+        const ctx = scaledCanvas.getContext('2d');
+
+        // 2배로 스케일링하여 그리기
+        ctx.drawImage(sourceCanvas, 0, 0, canvasWidth, canvasHeight);
+
+        // SVG 로드 및 그리기
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, paddingLeft * scale, paddingTop * scale, targetWidth * scale, targetHeight * scale);
+          
+          // sender_name을 텍스트로 그리기
+          if (sender_name) {
+            ctx.font = `normal ${22 * scale}px TalkFile_tratatello`;
+            ctx.fillStyle = '#de0000';
+            ctx.textAlign = 'middle';
+            ctx.fillText(sender_name, paddingLeft_text * scale, canvasHeight - paddingBottom_text * scale - 5 * scale);
+          }
+          
+          // blob으로 변환
+          scaledCanvas.toBlob((blob) => {
+            resolve(blob);
+          }, 'image/png');
+        };
+        img.onerror = () => {
+          console.error('Failed to load SVG');
+          
+          // sender_name을 텍스트로 그리기
+          if (sender_name) {
+            ctx.font = `normal ${22 * scale}px TalkFile_tratatello`;
+            ctx.fillStyle = '#de0000';
+            ctx.textAlign = 'middle';
+            ctx.fillText(sender_name, paddingLeft_text * scale, canvasHeight - paddingBottom_text * scale - 5 * scale);
+          }
+          
+          // SVG 로드 실패 시에도 canvas만 캡처
+          scaledCanvas.toBlob((blob) => {
+            resolve(blob);
+          }, 'image/png');
+        };
+        img.src = getImageURL('CardText.svg');
+      });
     },
   };
 }

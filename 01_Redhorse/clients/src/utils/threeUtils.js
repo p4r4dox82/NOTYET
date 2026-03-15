@@ -92,7 +92,7 @@ export function createNormalMapTexture(source, renderer, canvasWidth, canvasHeig
     tempNormalCanvas.width = sourceCanvas.width;
     tempNormalCanvas.height = sourceCanvas.height;
     const tempNormalContext = tempNormalCanvas.getContext('2d');
-    heightToNormal(sourceCanvas, tempNormalContext, 4.0);
+    heightToNormal(sourceCanvas, tempNormalContext, 5.0);
     
     normalContext.drawImage(tempNormalCanvas, 0, 0, canvasWidth, canvasHeight);
     

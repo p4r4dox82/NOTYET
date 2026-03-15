@@ -6,12 +6,14 @@ import { useRef, useState, useEffect } from 'react'
 import html2canvas from 'html2canvas'
 import { useFootPrint } from '../hooks/useFootPrint'
 import { processImageToNormalMap } from '../utils/imageProcessing'
+import { getImageURL } from '../utils/utils'
 
 function ResultPage(imageQuery) {
   const navigate = useNavigate()
   const location = useLocation()
   const newYearCardRef = useRef(null)
   const resultImage = location.state?.resultImage
+  const senderName = location.state?.senderName
   
   // useFootPrint용 refs
   const footprintCanvasRef = useRef(null)
@@ -21,13 +23,6 @@ function ResultPage(imageQuery) {
   
   // useFootPrint 훅 사용
   const footprintMethods = useFootPrint(newYearCardRef, footprintCanvasRef, normalMapTexture, originalTexture)
-
-  // 조명 밝기 변경 시 적용
-  useEffect(() => {
-    if (footprintMethods && footprintMethods.setLightIntensity) {
-      footprintMethods.setLightIntensity(lightIntensity)
-    }
-  }, [lightIntensity, footprintMethods])
 
   // 받은 이미지를 normalMapTexture로 변환
   useEffect(() => {
@@ -65,69 +60,52 @@ function ResultPage(imageQuery) {
   }
 
   const exportCardAsImage = async () => {
-    if (!newYearCardRef.current) return
-    
     try {
-      const canvas = await html2canvas(newYearCardRef.current)
+      const blob = await footprintMethods.takeScreenshot(senderName ? `By. ${senderName}` : '')
+      
+      if (!blob) {
+        alert('스크린샷 생성 실패')
+        return
+      }
+      
+      const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.href = canvas.toDataURL('image/png')
+      link.href = url
       link.download = 'NewYearCard.png'
       link.click()
+      
+      // 메모리 정리
+      URL.revokeObjectURL(url)
     } catch (error) {
       alert('이미지 저장에 실패했습니다.')
       console.error(error)
     }
   }
 
-  const exportNormalMap = () => {
-    if (footprintMethods && footprintMethods.exportNormalMapImage) {
-      footprintMethods.exportNormalMapImage()
-    }
-  }
-
   return (
     <div className="main_container" data-name="Twitter post - 9" data-node-id="110:3">
       {/* 조명 밝기 슬라이더 */}
-      <div style={{
-        position: 'absolute',
-        top: '20px',
-        left: '20px',
-        zIndex: 1000,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        padding: '10px 15px',
-        borderRadius: '8px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px'
-      }}>
-        <label style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}>
-          Light:
-        </label>
-        <input 
-          type="range" 
-          min="0" 
-          max="5" 
-          step="0.1" 
-          value={lightIntensity}
-          onChange={(e) => setLightIntensity(parseFloat(e.target.value))}
-          style={{ width: '100px', cursor: 'pointer' }}
-        />
-        <span style={{ color: '#fff', fontSize: '12px', minWidth: '30px' }}>
-          {lightIntensity.toFixed(1)}
-        </span>
-      </div>
-
       <div className='layout_container'>
         <div className='NewYearCard' ref={newYearCardRef}>
           {/* 3D 렌더링 컨테이너 */}
             <canvas 
               ref={footprintCanvasRef}
+              width={1024}
+              height={1448}
               style={{
                 display: 'block',
                 width: '100%',
                 height: '100%'
               }}
             />
+            <img 
+              src={getImageURL('CardText.svg')}
+              className = "CardTextOverlay"
+              alt="Card Text Overlay"
+            />
+            <div className="sender_name">
+              By. {senderName}
+            </div>
         </div>
         <div className='button_container'>
           <div className='RetryButton' onClick={navigateRetry}>
@@ -138,9 +116,6 @@ function ResultPage(imageQuery) {
           </div>
           <div className='ExportButton' onClick={exportCardAsImage}>
             <>export for card</>
-          </div>
-          <div className='ExportButton' onClick={exportNormalMap}>
-            <>export normalmap</>
           </div>
         </div>
       </div>

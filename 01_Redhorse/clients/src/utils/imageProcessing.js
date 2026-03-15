@@ -88,10 +88,10 @@ export async function processImageToNormalMap(resultImage, setNormalMapTexture, 
       console.log('Image loaded for normal map conversion')
       const CANVAS_WIDTH = 367
       const CANVAS_HEIGHT = 519
-      const paddingTop = 83
-      const paddingBottom = 50
+      const paddingTop = 43
+      const paddingBottom = 0
       const imageHeight = CANVAS_HEIGHT - (paddingTop + paddingBottom)
-      const imageWidth = (imageHeight * 337) / 386
+      const imageWidth = (imageHeight * 280) / 386
 
       const sourceCanvas = document.createElement('canvas')
       sourceCanvas.width = CANVAS_WIDTH
