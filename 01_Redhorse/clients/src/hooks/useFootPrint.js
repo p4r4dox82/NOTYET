@@ -208,7 +208,7 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
         // 새 노멀맵 저장
         newNormalMapRef.current = newNormalMapTexture;
         // 새 노멀맵과 기존 노멀맵을 blend
-        const blendedTexture = blendNormalMapsWhiteout(originalNormalMapRef.current, newNormalMapTexture, rendererRef.current);
+        const blendedTexture = blendNormalMaps(originalNormalMapRef.current, newNormalMapTexture, rendererRef.current);
         materialRef.current.normalMap = blendedTexture;
         materialRef.current.needsUpdate = true;
         console.log('Normal maps blended successfully');
