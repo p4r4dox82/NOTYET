@@ -135,23 +135,6 @@ function ResultPage(imageQuery) {
       {/* 렌더링 후: 결과 화면 */}
       {(
         <>
-          {resultImage && (
-            <img 
-              src={resultImage} 
-              style={{
-                position: 'fixed',
-                top: 10,
-                left: 10,
-                width: '200px',
-                height: 'auto',
-                border: '2px solid red',
-                zIndex: 9999,
-                backgroundColor: 'white'
-              }}
-              alt="Debug: Original Image"
-            />
-          )}
-          {/* 조명 밝기 슬라이더 */}
           <div className='layout_container'>
             <div className='NewYearCard' ref={newYearCardRef}>
               {/* 3D 렌더링 컨테이너 */}
