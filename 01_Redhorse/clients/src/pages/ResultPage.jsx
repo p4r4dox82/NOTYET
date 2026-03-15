@@ -43,7 +43,7 @@ function ResultPage(imageQuery) {
       console.log('Calling updateOriginalMap')
       footprintMethods.updateOriginalMap(originalTexture)
     }
-  }, [normalMapTexture, originalTexture])
+  }, [normalMapTexture])
 
   const navigateRetry = () => {
       navigate('/')
