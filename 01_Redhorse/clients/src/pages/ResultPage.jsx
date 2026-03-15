@@ -1,8 +1,9 @@
 import Logo from '../components/Logo'
 import '../styles/ResultPage.css'
+import '../styles/RenderingPage.css'
 import '../styles/App.css'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import html2canvas from 'html2canvas'
 import { useFootPrint } from '../hooks/useFootPrint'
 import { processImageToNormalMap } from '../utils/imageProcessing'
@@ -11,11 +12,15 @@ import { getImageURL } from '../utils/utils'
 function ResultPage(imageQuery) {
   const navigate = useNavigate()
   const location = useLocation()
-  const newYearCardRef = useRef(null)
   const resultImage = location.state?.resultImage
-  const senderName = location.state?.senderName
   
-  // useFootPrint용 refs
+  // RenderingPage UI 상태
+  const [senderName, setSenderName] = useState('')
+  const [isHovered, setIsHovered] = useState(false)
+  const [isRenderingStarted, setIsRenderingStarted] = useState(false)
+  
+  // 3D 렌더링 상태
+  const newYearCardRef = useRef(null)
   const footprintCanvasRef = useRef(null)
   const [normalMapTexture, setNormalMapTexture] = useState(null)
   const [originalTexture, setOriginalMapTexture] = useState(null)
@@ -23,12 +28,29 @@ function ResultPage(imageQuery) {
   // useFootPrint 훅 사용
   const footprintMethods = useFootPrint(newYearCardRef, footprintCanvasRef, normalMapTexture, originalTexture)
 
-  // 받은 이미지를 normalMapTexture로 변환
+  // 이름 입력 변경
+  const handleNameChange = useCallback((e) => {
+    setSenderName(e.target.value)
+  }, [])
+
+  // "Here's my name" 버튼 클릭 - 이미지 처리 시작
+  const handleStartRendering = useCallback(() => {
+    if (!resultImage) {
+      alert('이미지를 먼저 생성해주세요.')
+      return
+    }
+    setIsRenderingStarted(true)
+  }, [resultImage])
+
+  const handleMouseEnter = useCallback(() => setIsHovered(true), [])
+  const handleMouseLeave = useCallback(() => setIsHovered(false), [])
+
+  // 렌더링 시작 시 이미지 처리
   useEffect(() => {
-    if (!resultImage) return
+    if (!isRenderingStarted || !resultImage) return
 
     processImageToNormalMap(resultImage, setNormalMapTexture, setOriginalMapTexture)
-  }, [resultImage])
+  }, [isRenderingStarted, resultImage])
 
   // normalMapTexture가 준비되면 useFootPrint에 적용
   useEffect(() => {
@@ -47,6 +69,8 @@ function ResultPage(imageQuery) {
 
   const navigateRetry = () => {
       navigate('/')
+      setIsRenderingStarted(false)
+      setSenderName('')
   }
 
   const copyLink = () => {
@@ -82,61 +106,92 @@ function ResultPage(imageQuery) {
   }
 
   return (
-    <div className="main_container" data-name="Twitter post - 9" data-node-id="110:3">
-      {/* 디버깅: 원본 이미지 표시 */}
-      {resultImage && (
-        <img 
-          src={resultImage} 
-          style={{
-            position: 'fixed',
-            top: 10,
-            left: 10,
-            width: '200px',
-            height: 'auto',
-            border: '2px solid red',
-            zIndex: 9999,
-            backgroundColor: 'white'
-          }}
-          alt="Debug: Original Image"
-        />
-      )}
-      {/* 조명 밝기 슬라이더 */}
-      <div className='layout_container'>
-        <div className='NewYearCard' ref={newYearCardRef}>
-          {/* 3D 렌더링 컨테이너 */}
-            <canvas 
-              ref={footprintCanvasRef}
-              width={1024}
-              height={1448}
-              style={{
-                display: 'block',
-                width: '100%',
-                height: '100%'
-              }}
-            />
-            <img 
-              src={getImageURL('CardText.svg')}
-              className = "CardTextOverlay"
-              alt="Card Text Overlay"
-            />
-            <div className="sender_name">
-              By. {senderName}
+    <>
+      {/* 렌더링 전: 이름 입력 화면 */}
+      {!isRenderingStarted && (
+      <div className="main_container" data-name="Twitter post - 9" data-node-id="110:3">
+        <div className='banner_main_container'>
+          <div className='banner_container'>
+            <div className='instruction'>Please write the sender's name.</div>
+            <div className='input_container'>
+              <input 
+                className='input_box'
+                value={senderName}
+                onChange={handleNameChange}
+              />
+              <div className={`result_btn ${isHovered ? 'hovered' : ''}`}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+                onClick={handleStartRendering}>
+              <>Here's my name</>
+              </div>  
             </div>
-        </div>
-        <div className='button_container'>
-          <div className='RetryButton' onClick={navigateRetry}>
-            <>RETRY</>
-          </div>
-          <div className='CopyLinkButton' onClick={copyLink}>
-            <>COPY THE LINK</>
-          </div>
-          <div className='ExportButton' onClick={exportCardAsImage}>
-            <>export for card</>
           </div>
         </div>
-      </div>
+        </div>
+      )}
+      <div className="main_container" data-name="Twitter post - 9" data-node-id="110:3">
+
+      {/* 렌더링 후: 결과 화면 */}
+      {(
+        <>
+          {resultImage && (
+            <img 
+              src={resultImage} 
+              style={{
+                position: 'fixed',
+                top: 10,
+                left: 10,
+                width: '200px',
+                height: 'auto',
+                border: '2px solid red',
+                zIndex: 9999,
+                backgroundColor: 'white'
+              }}
+              alt="Debug: Original Image"
+            />
+          )}
+          {/* 조명 밝기 슬라이더 */}
+          <div className='layout_container'>
+            <div className='NewYearCard' ref={newYearCardRef}>
+              {/* 3D 렌더링 컨테이너 */}
+              <canvas 
+                ref={footprintCanvasRef}
+                width={1024}
+                height={1448}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  height: '100%'
+                }}
+              />
+              <img 
+                src={getImageURL('CardText.svg')}
+                className = "CardTextOverlay"
+                alt="Card Text Overlay"
+              />
+              <div className="sender_name">
+                By. {senderName}
+              </div>
+            </div>
+            <div className='button_container'>
+              <div className='RetryButton' onClick={navigateRetry}>
+                <>RETRY</>
+              </div>
+              <div className='CopyLinkButton' onClick={copyLink}>
+                <>COPY THE LINK</>
+              </div>
+              <div className='ExportButton' onClick={exportCardAsImage}>
+                <>export for card</>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       <Logo color="white"/>
     </div>
+    </>
   )
 }
 

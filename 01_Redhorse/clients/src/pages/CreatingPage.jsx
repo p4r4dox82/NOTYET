@@ -31,7 +31,7 @@ function CreatingPage() {
     if (shaderComparisonRef.current && shaderComparisonRef.current.getCanvasImage) {
       canvasImage = await shaderComparisonRef.current.getCanvasImage()
     }
-    navigate('/rendering', { state: { resultImage: canvasImage } })
+    navigate('/result', { state: { resultImage: canvasImage } })
   }
 
   // Drawing setup
