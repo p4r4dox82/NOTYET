@@ -57,6 +57,7 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
     // --- Orbit Controls ---
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.enabled = false; // 마우스 조작 비활성화
 
     // --- Textures ---
     const textureLoader = new THREE.TextureLoader();
