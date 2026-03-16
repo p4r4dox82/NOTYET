@@ -1,6 +1,6 @@
 import React, { useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { useShaderComparison } from '../hooks/useShaderComparison';
-import styles from './ShaderComparison.module.css';
+import styles from '../styles/ShaderComparison.module.css';
 
 /**
  * 다양한 Shader를 렌더링하는 컴포넌트

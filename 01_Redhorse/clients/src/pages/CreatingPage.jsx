@@ -2,8 +2,8 @@ import Logo from '../components/Logo'
 import { ShaderComparison } from '../components/ShaderComparison'
 import { getImageURL, initializeCanvas, createDrawingHandlers } from '../utils/utils'
 import '../styles/App.css'
-import '../styles/CreatingPage.css'
-import '../styles/Components.css'
+import creatingPageStyles from '../styles/CreatingPage.module.scss'
+import componentsStyles from '../styles/Components.module.scss'
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -71,9 +71,9 @@ function CreatingPage() {
         <img alt="background" src={getImageURL('main_background.png')} />
       </div>
       {/* Contents */}
-        <div className='create_container'>
-          <div className='draw_container'>
-            <div className='draw_box' ref={drawBoxRef}>
+        <div className={creatingPageStyles.create_container}>
+          <div className={creatingPageStyles.draw_container}>
+            <div className={creatingPageStyles.draw_box} ref={drawBoxRef}>
               <canvas
                 ref={drawCanvasRef}
                 style={{
@@ -84,20 +84,20 @@ function CreatingPage() {
                 }}
               />
             </div>
-            <div className={`text ${hasDrawn ? 'hidden' : ''}`}>
+            <div className={`${creatingPageStyles.text} ${hasDrawn ? creatingPageStyles.hidden : ''}`}>
               <div>DRAW YOUR</div>
               <div>WISH HERE</div>
             </div>
           </div>
-          <div className='result_container'>
-            <div className='result_box'>
+          <div className={creatingPageStyles.result_container}>
+            <div className={creatingPageStyles.result_box}>
               <ShaderComparison ref={shaderComparisonRef} defaultMode={7} showButtons={false} />
             </div>  
-            <div className='text_container'>
-              <div className='instruction'>
-                We don’t store any of your information.
+            <div className={creatingPageStyles.text_container}>
+              <div className={creatingPageStyles.instruction}>
+                We don't store any of your information.
               </div>
-              <div className={`make_btn ${isHovered ? 'hovered' : ''}`}
+              <div className={`${creatingPageStyles.make_btn} ${isHovered ? creatingPageStyles.hovered : ''}`}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
                 onClick={navigateMakeButton}>

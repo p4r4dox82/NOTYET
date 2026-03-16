@@ -1,6 +1,5 @@
 import Logo from '../components/Logo'
-import '../styles/ResultPage.css'
-import '../styles/RenderingPage.css'
+import resultPageStyles from '../styles/ResultPage.module.scss'
 import '../styles/App.css'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useRef, useState, useEffect, useCallback } from 'react'
@@ -109,17 +108,17 @@ function ResultPage(imageQuery) {
     <>
       {/* 렌더링 전: 이름 입력 화면 */}
       {!isRenderingStarted && (
-      <div className="main_container" data-name="Twitter post - 9" data-node-id="110:3">
-        <div className='banner_main_container'>
-          <div className='banner_container'>
-            <div className='instruction'>Please write the sender's name.</div>
-            <div className='input_container'>
+      <div className={resultPageStyles.main_container} data-name="Twitter post - 9" data-node-id="110:3">
+        <div className={resultPageStyles.banner_main_container}>
+          <div className={resultPageStyles.banner_container}>
+            <div className={resultPageStyles.instruction}>Please write the sender's name.</div>
+            <div className={resultPageStyles.input_container}>
               <input 
-                className='input_box'
+                className={resultPageStyles.input_box}
                 value={senderName}
                 onChange={handleNameChange}
               />
-              <div className={`result_btn ${isHovered ? 'hovered' : ''}`}
+              <div className={`${resultPageStyles.result_btn} ${isHovered ? resultPageStyles.hovered : ''}`}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
                 onClick={handleStartRendering}>
@@ -130,13 +129,13 @@ function ResultPage(imageQuery) {
         </div>
         </div>
       )}
-      <div className="main_container" data-name="Twitter post - 9" data-node-id="110:3">
+      <div className={resultPageStyles.main_container} data-name="Twitter post - 9" data-node-id="110:3">
 
       {/* 렌더링 후: 결과 화면 */}
       {(
         <>
-          <div className='layout_container'>
-            <div className='NewYearCard' ref={newYearCardRef}>
+          <div className={resultPageStyles.layout_container}>
+            <div className={resultPageStyles.NewYearCard} ref={newYearCardRef}>
               {/* 3D 렌더링 컨테이너 */}
               <canvas 
                 ref={footprintCanvasRef}
@@ -150,21 +149,21 @@ function ResultPage(imageQuery) {
               />
               <img 
                 src={getImageURL('CardText.svg')}
-                className = "CardTextOverlay"
+                className = {resultPageStyles.CardTextOverlay}
                 alt="Card Text Overlay"
               />
-              <div className="sender_name">
+              <div className={resultPageStyles.sender_name}>
                 By. {senderName}
               </div>
             </div>
-            <div className='button_container'>
-              <div className='RetryButton' onClick={navigateRetry}>
+            <div className={resultPageStyles.button_container}>
+              <div className={resultPageStyles.RetryButton} onClick={navigateRetry}>
                 <>RETRY</>
               </div>
-              <div className='CopyLinkButton' onClick={copyLink}>
+              <div className={resultPageStyles.CopyLinkButton} onClick={copyLink}>
                 <>COPY THE LINK</>
               </div>
-              <div className='ExportButton' onClick={exportCardAsImage}>
+              <div className={resultPageStyles.ExportButton} onClick={exportCardAsImage}>
                 <>export for card</>
               </div>
             </div>
