@@ -5,6 +5,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { getImageURL } from '../utils/utils';
+import { getPreloadedTexture } from '../utils/texturePreloader';
 
 /**
  * 발자국 (3D 시각화) 관리 커스텀 훅
@@ -23,6 +24,9 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
   const mainLightRef = useRef(null);
   const fillLightRef = useRef(null);
   const ambientLightRef = useRef(null);
+  const bgBaseMapRef = useRef(null);
+  const bgRoughnessMapRef = useRef(null);
+  const bgNormalMapRef = useRef(null);
 
   useEffect(() => {
     if (!containerRef.current || !canvasRef.current) return;
@@ -58,61 +62,13 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
-    // --- Textures ---
-    const textureLoader = new THREE.TextureLoader();
-    const path = './images/shaders/Snow001_4K-JPG/Snow001_4K-JPG_';
-
-    let bgBaseMap = null;
-    let bgRoughnessMap = null;
-    let bgNormalMap = null;
-
-    // 텍스처 로드 (에러 핸들러 포함)
-    bgBaseMap = textureLoader.load(
-      `${path}Color.jpg`,
-      undefined, // onLoad
-      undefined, // onProgress
-      (error) => console.warn('Color texture not found:', error)
-    );
-    bgRoughnessMap = textureLoader.load(
-      `${path}Roughness.jpg`,
-      undefined,
-      undefined,
-      (error) => console.warn('Roughness texture not found:', error)
-    );
-    bgNormalMap = textureLoader.load(
-      `${path}NormalGL.jpg`,
-      undefined,
-      undefined,
-      (error) => console.warn('Normal texture not found:', error)
-    );
-
-    [bgBaseMap, bgRoughnessMap, bgNormalMap].forEach((tex) => {
-      if (tex) {
-        tex.wrapS = THREE.ClampToEdgeWrapping;
-        tex.wrapT = THREE.ClampToEdgeWrapping;
-      }
-    });
-
-    // 원본 노멀맵 저장
-    originalNormalMapRef.current = bgNormalMap;
-    originalDisplacementMapRef.current = bgNormalMap;
-
     // --- Material ---
-    // normalMapTexture가 없으면 기본값 사용
-    const displayNormalMap = normalMapTexture || bgNormalMap;
-    const displacementTexture = originalTexture || bgNormalMap;
-
     const material = new THREE.MeshPhysicalMaterial({
-      map: bgBaseMap,
-      normalMap: displayNormalMap,
       normalScale: new THREE.Vector2(4, 4),
-      roughnessMap: bgRoughnessMap,
 
-      displacementMap: displacementTexture,
       displacementScale: 1.5,
       displacementBias: 0.0,
 
-      aoMap: displacementTexture,
       aoMapIntensity: 1.5,
 
       roughness: 0.7,
@@ -123,7 +79,34 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
 
       opacity: 1.0,
       transparent: true,
+    });
 
+    // --- Textures (프리로드된 텍스처 적용) ---
+    const snowPath = './images/shaders/Snow001_4K-JPG/Snow001_4K-JPG_';
+
+    Promise.all([
+      getPreloadedTexture(`${snowPath}Color.jpg`),
+      getPreloadedTexture(`${snowPath}Roughness.jpg`),
+      getPreloadedTexture(`${snowPath}NormalGL.jpg`),
+    ]).then(([bgBaseMap, bgRoughnessMap, bgNormalMap]) => {
+      console.log('Preloaded textures loaded:', { bgBaseMap, bgRoughnessMap, bgNormalMap });
+      material.map = bgBaseMap;
+      material.roughnessMap = bgRoughnessMap;
+
+      const displayNormalMap = normalMapTexture || bgNormalMap;
+      const displacementTexture = originalTexture || bgNormalMap;
+
+      material.normalMap = displayNormalMap;
+      material.displacementMap = displacementTexture;
+      material.aoMap = displacementTexture;
+      material.needsUpdate = true;
+
+      // Ref에 저장하여 cleanup에서 접근 가능하게
+      bgBaseMapRef.current = bgBaseMap;
+      bgRoughnessMapRef.current = bgRoughnessMap;
+      bgNormalMapRef.current = bgNormalMap;
+      originalNormalMapRef.current = bgNormalMap;
+      originalDisplacementMapRef.current = bgNormalMap;
     });
 
     // --- Mesh ---
@@ -194,9 +177,9 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
       renderer.dispose();
       geometry.dispose();
       material.dispose();
-      if (bgBaseMap) bgBaseMap.dispose();
-      if (bgRoughnessMap) bgRoughnessMap.dispose();
-      if (bgNormalMap) bgNormalMap.dispose();
+      if (bgBaseMapRef.current) bgBaseMapRef.current.dispose();
+      if (bgRoughnessMapRef.current) bgRoughnessMapRef.current.dispose();
+      if (bgNormalMapRef.current) bgNormalMapRef.current.dispose();
       composer.dispose();
       controls.dispose();
     };
@@ -204,9 +187,7 @@ export function useFootPrint(containerRef, canvasRef, normalMapTexture, original
 
   return {
     updateNormalMap(newNormalMapTexture) {
-      console.log('asdfasdf', originalNormalMapRef.current)
       if (materialRef.current && newNormalMapTexture && originalNormalMapRef.current) {
-        console.log('qwerqwer', originalNormalMapRef.current)
         // 새 노멀맵 저장
         newNormalMapRef.current = newNormalMapTexture;
         // 새 노멀맵과 기존 노멀맵을 blend

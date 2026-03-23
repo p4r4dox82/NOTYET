@@ -13,6 +13,7 @@ import {
   createCompOverScene,
 } from "../utils/shaderScenes";
 import { BlurShader, SimpleTextureShader, CompShader_multiply } from "../constants/shaders";
+import { getPreloadedTexture } from "../utils/texturePreloader";
 
 // HMR (Hot Module Replacement) 개선을 위한 설정
 if (import.meta.hot) {
@@ -140,19 +141,12 @@ export function useShaderComparison(
       blurPasses: blurPasses,
     };
 
-    // 텍스처 로드 (1번만)
-    const horseshoeTexture = new THREE.TextureLoader().load('./images/shaders/HorseShoe_fill.png', (tex) => {
-        tex.generateMipmaps = true;
-        tex.minFilter = THREE.LinearMipmapLinearFilter;
-        tex.magFilter = THREE.LinearFilter;
+    // 프리로드된 텍스처 사용 (MainPage에서 미리 로드)
+    getPreloadedTexture('./images/shaders/HorseShoe_fill.png').then((tex) => {
         blurSetup.material.uniforms.tDiffuse.value = tex;
     });
 
-    // HorseShoe_line.png 텍스처 로드 (shader 6용)
-    const horseshoeLineTexture = new THREE.TextureLoader().load('./images/shaders/HorseShoe_line.png', (tex) => {
-        tex.generateMipmaps = true;
-        tex.minFilter = THREE.LinearMipmapLinearFilter;
-        tex.magFilter = THREE.LinearFilter;
+    getPreloadedTexture('./images/shaders/HorseShoe_line.png').then((tex) => {
         blurLineSetup.material.uniforms.tDiffuse.value = tex;
     });
 

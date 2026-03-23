@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getImageURL } from '../utils/utils'
+import { preloadTextures } from '../utils/texturePreloader'
 import '../styles/App.css'
 import mainPageStyles from '../styles/MainPage.module.scss'
 import Logo from '../components/Logo'
@@ -8,6 +9,10 @@ import Logo from '../components/Logo'
 function MainPage() {
   const [isHovered, setIsHovered] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    preloadTextures()
+  }, [])
 
   const handleCreateCard = () => {
     navigate('/create')
