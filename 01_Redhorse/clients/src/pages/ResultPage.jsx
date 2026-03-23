@@ -7,6 +7,7 @@ import html2canvas from 'html2canvas'
 import { useFootPrint } from '../hooks/useFootPrint'
 import { processImageToNormalMap } from '../utils/imageProcessing'
 import { getImageURL } from '../utils/utils'
+import RenderingPage from './RenderingPage'
 
 function ResultPage(imageQuery) {
   const navigate = useNavigate()
@@ -23,6 +24,7 @@ function ResultPage(imageQuery) {
   const footprintCanvasRef = useRef(null)
   const [normalMapTexture, setNormalMapTexture] = useState(null)
   const [originalTexture, setOriginalMapTexture] = useState(null)
+  const audioPlayedRef = useRef(false)
   
   // useFootPrint 훅 사용
   const footprintMethods = useFootPrint(newYearCardRef, footprintCanvasRef, normalMapTexture, originalTexture)
@@ -43,6 +45,18 @@ function ResultPage(imageQuery) {
 
   const handleMouseEnter = useCallback(() => setIsHovered(true), [])
   const handleMouseLeave = useCallback(() => setIsHovered(false), [])
+
+  // ResultPage 진입 시 사운드 재생
+  useEffect(() => {
+    if (audioPlayedRef.current) return // 이미 재생했으면 중복 재생 방지
+    
+    audioPlayedRef.current = true
+    const audio = new Audio('./sounds/RenderingSound.mp3')
+    window.renderingAudio = audio
+    audio.play().catch(error => {
+      console.error('사운드 재생 실패:', error)
+    })
+  }, [])
 
   // 렌더링 시작 시 이미지 처리
   useEffect(() => {
@@ -108,26 +122,7 @@ function ResultPage(imageQuery) {
     <>
       {/* 렌더링 전: 이름 입력 화면 */}
       {!isRenderingStarted && (
-      <div className={resultPageStyles.main_container} data-name="Twitter post - 9" data-node-id="110:3">
-        <div className={resultPageStyles.banner_main_container}>
-          <div className={resultPageStyles.banner_container}>
-            <div className={resultPageStyles.instruction}>Please write the sender's name.</div>
-            <div className={resultPageStyles.input_container}>
-              <input 
-                className={resultPageStyles.input_box}
-                value={senderName}
-                onChange={handleNameChange}
-              />
-              <div className={`${resultPageStyles.result_btn} ${isHovered ? resultPageStyles.hovered : ''}`}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
-                onClick={handleStartRendering}>
-              <>Here's my name</>
-              </div>  
-            </div>
-          </div>
-        </div>
-        </div>
+        <RenderingPage onSubmit={handleStartRendering}/>
       )}
       <div className={resultPageStyles.main_container} data-name="Twitter post - 9" data-node-id="110:3">
 

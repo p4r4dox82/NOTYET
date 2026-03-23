@@ -9,7 +9,6 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<MainPage />} />
-        <Route path="/create" element={<CreatingPage />} />
         <Route path="/result" element={<ResultPage />} />
         <Route path="/shader_test" element={<ShaderComparison />} />
       </Routes>

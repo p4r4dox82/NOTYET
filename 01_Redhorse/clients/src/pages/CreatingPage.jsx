@@ -1,13 +1,10 @@
-import Logo from '../components/Logo'
 import { ShaderComparison } from '../components/ShaderComparison'
 import { getImageURL, initializeCanvas, createDrawingHandlers } from '../utils/utils'
-import '../styles/App.css'
-import creatingPageStyles from '../styles/CreatingPage.module.scss'
-import componentsStyles from '../styles/Components.module.scss'
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import creatingPageStyles from '../styles/CreatingPage.module.scss'
 
-function CreatingPage() {
+function CreatingPage({ onBack }) {
   const [isHovered, setIsHovered] = useState(false)
   const [hasDrawn, setHasDrawn] = useState(false)
   const navigate = useNavigate()
@@ -20,21 +17,6 @@ function CreatingPage() {
     lastY: 0,
   })
 
-  // hasDrawn 상태 변경 감시
-  useEffect(() => {
-    console.log('hasDrawn state changed:', hasDrawn)
-  }, [hasDrawn])
-
-  const navigateMakeButton = async () => {
-    // ShaderComparison의 캔버스 이미지를 route state로 전달
-    let canvasImage = null
-    if (shaderComparisonRef.current && shaderComparisonRef.current.getCanvasImage) {
-      canvasImage = await shaderComparisonRef.current.getCanvasImage()
-    }
-    navigate('/result', { state: { resultImage: canvasImage } })
-  }
-
-  // Drawing setup
   useEffect(() => {
     if (!drawBoxRef.current || !drawCanvasRef.current) return
 
@@ -49,13 +31,11 @@ function CreatingPage() {
       setHasDrawn
     )
 
-    // Register event listeners
     canvas.addEventListener('mousedown', handleMouseDown)
     canvas.addEventListener('mouseup', handleMouseUp)
     canvas.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
 
-    // Cleanup
     return () => {
       canvas.removeEventListener('mousedown', handleMouseDown)
       canvas.removeEventListener('mouseup', handleMouseUp)
@@ -64,49 +44,51 @@ function CreatingPage() {
     }
   }, [])
 
+  const navigateMakeButton = async () => {
+    let canvasImage = null
+    if (shaderComparisonRef.current && shaderComparisonRef.current.getCanvasImage) {
+      canvasImage = await shaderComparisonRef.current.getCanvasImage()
+    }
+    navigate('/result', { state: { resultImage: canvasImage } })
+  }
+
   return (
-    <div className="main_container" data-name="Twitter post - 9" data-node-id="110:3">
-      {/* Background Image */}
-      <div className="bg-image" data-name="image 38" data-node-id="129:68">
-        <img alt="background" src={getImageURL('main_background.png')} />
+    <div className={creatingPageStyles.create_container}>
+      <div className={creatingPageStyles.draw_container}>
+        <div className={creatingPageStyles.draw_box} ref={drawBoxRef}>
+          <canvas
+            ref={drawCanvasRef}
+            style={{
+              display: 'block',
+              width: '100%',
+              height: '100%',
+              cursor: 'crosshair'
+            }}
+          />
+        </div>
+        <div className={`${creatingPageStyles.text} ${hasDrawn ? creatingPageStyles.hidden : ''}`}>
+          <div>DRAW YOUR</div>
+          <div>WISH HERE</div>
+        </div>
       </div>
-      {/* Contents */}
-        <div className={creatingPageStyles.create_container}>
-          <div className={creatingPageStyles.draw_container}>
-            <div className={creatingPageStyles.draw_box} ref={drawBoxRef}>
-              <canvas
-                ref={drawCanvasRef}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  height: '100%',
-                  cursor: 'crosshair'
-                }}
-              />
-            </div>
-            <div className={`${creatingPageStyles.text} ${hasDrawn ? creatingPageStyles.hidden : ''}`}>
-              <div>DRAW YOUR</div>
-              <div>WISH HERE</div>
-            </div>
+      <div className={creatingPageStyles.result_container}>
+        <div className={creatingPageStyles.result_box}>
+          <ShaderComparison ref={shaderComparisonRef} defaultMode={7} showButtons={false} />
+        </div>
+        <div className={creatingPageStyles.text_container}>
+          <div className={creatingPageStyles.instruction}>
+            We don't store any of your information.
           </div>
-          <div className={creatingPageStyles.result_container}>
-            <div className={creatingPageStyles.result_box}>
-              <ShaderComparison ref={shaderComparisonRef} defaultMode={7} showButtons={false} />
-            </div>  
-            <div className={creatingPageStyles.text_container}>
-              <div className={creatingPageStyles.instruction}>
-                We don't store any of your information.
-              </div>
-              <div className={`${creatingPageStyles.make_btn} ${isHovered ? creatingPageStyles.hovered : ''}`}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
-                onClick={navigateMakeButton}>
-                <>MADE UP MY WISHES</>
-              </div>
-            </div>
+          <div
+            className={`${creatingPageStyles.make_btn} ${isHovered ? creatingPageStyles.hovered : ''}`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            onClick={navigateMakeButton}
+          >
+            <>MADE UP MY WISHES</>
           </div>
         </div>
-      <Logo/> 
+      </div>
     </div>
   )
 }
