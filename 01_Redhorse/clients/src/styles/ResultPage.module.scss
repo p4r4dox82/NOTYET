@@ -1,0 +1,143 @@
+.main_container {
+  background-color: black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100vh;
+}
+
+.banner_main_container {
+  background-color: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+.banner_container {
+  width: 530px;
+  height: 140px;
+  background: #FFF;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  .instruction {
+    color: #000;
+    font-family: Poolside;
+    font-size: 48px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 100%; /* 48px */
+    letter-spacing: -1.44px;
+    white-space: nowrap;
+  }
+  .input_container {
+    display: flex;
+    justify-content: space-between;
+    input {
+      width: 283px;
+      height: 28px;
+      border: none;
+      padding: none;
+      border-bottom: #000 1px solid;
+
+      color: #000;
+      font-family: "Arial Black";
+      font-size: 28px;
+      font-style: normal;
+      font-weight: 900;
+      line-height: 100%; /* 28px */
+      letter-spacing: -4.48px;
+      text-transform: uppercase;
+
+      transform: translateY(0.5px);
+    }
+    .result_btn {
+      color: #000;
+      font-family: "Arial Black";
+      font-size: 28px;
+      font-style: normal;
+      font-weight: 900;
+      line-height: 100%; /* 28px */
+      letter-spacing: -4.48px;
+      text-transform: uppercase;
+      padding-right: 4.48px;
+    }
+    .result_btn:hover {
+      color: red; /* Point color - 빨간색 */
+      /* text-shadow: 0 0 10px rgba(255, 0, 0, 0.3); */
+    }
+
+    .result_btn.hovered {
+      color: red;
+    }
+
+    .result_btn:hover {
+      animation: none;
+      color: red;
+    }
+  }
+}
+
+.layout_container {
+  position: relative;
+  width: 658px;
+  height: 626.39px;
+  .NewYearCard {
+    position: relative;
+    top: 40px;
+    left: 80px;
+    width: 366.742px;
+    height: 519.114px;
+    transform: rotate(15deg);
+    background: #000000;
+    overflow: hidden;
+    .CardTextOverlay {
+      position: absolute;
+      top: 126px;
+      left: 63px;
+      pointer-events: none;
+      z-index: 1;
+      width: 236px;
+      height: 244px;
+    }
+    .sender_name {
+      position: absolute;
+      bottom: 120px;
+      left: 80px;
+      z-index: 2;
+      font-family: "TalkFile_tratatello";
+      font-size: 22px;
+      font-style: normal;
+      font-weight: 400;
+      line-height: 100%; /* 18px */
+      color: #de0000;
+    }
+  }
+  .button_container {
+    position: absolute;
+    right: 0px;
+    bottom: 0px;
+    display: flex;
+    flex-direction: column;
+    align-items: end;
+    gap: 15px;
+    .RetryButton, .CopyLinkButton, .ExportButton {
+      width: fit-content;
+      padding: 12px;
+      background: #FFF;
+      padding: 12px;
+      color: #000;
+      font-family: "Arial Black";
+      font-size: 28px;
+      font-style: normal;
+      font-weight: 900;
+      line-height: 100%; /* 28px */
+      letter-spacing: -4.48px;
+      text-transform: uppercase;
+    }
+  }
+}

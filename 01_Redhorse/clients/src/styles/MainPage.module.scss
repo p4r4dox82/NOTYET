@@ -1,0 +1,106 @@
+/* Blur Card */
+.start_banner_container {
+  position: relative;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 765px;
+  height: 140px;
+  padding: 12px;
+
+  background: #FFF;
+
+  display: flex;
+  justify-content: space-between;
+  .logo_container {
+    height: 100%;
+    aspect-ratio: 1;
+    background: #000;
+    padding: 33px 5px 33px 5px;
+    img {
+      width: 100%;
+      stroke: #fff;
+    }
+  }
+  .text_container {
+    width: 608px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    .main_text{
+      color: #000;
+      font-family: Poolside;
+      font-size: 48px;
+      font-style: normal;
+      font-weight: 400;
+      line-height: 100%; /* 48px */
+      letter-spacing: -1.44px;
+      white-space: nowrap;
+    }
+    .sub_text_container {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      .production {
+        color: #000;
+        font-family: Poolside;
+        font-size: 10px;
+        font-style: normal;
+        font-weight: 400;
+        line-height: 120%; /* 12px */
+        letter-spacing: -0.5px;
+      }
+      .instruction_container {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 11px;
+        .instruction {
+          display: block;
+          color: #000;
+          font-family: Arial;
+          font-size: 10px;
+          font-style: normal;
+          font-weight: 400;
+          line-height: 120%; /* 12px */
+          letter-spacing: -0.5px;
+          text-transform: uppercase;
+        }
+        /* CREATE A CARD Button */
+        .create-card-btn {
+          color: #000;
+          font-family: "Arial Black";
+          font-size: 28px;
+          font-style: normal;
+          font-weight: 900;
+          line-height: 100%; /* 28px */
+          letter-spacing: -4.48px;
+          text-transform: uppercase;
+          padding-right: 4.48px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          transition: color 0.3s ease, text-shadow 0.3s ease;
+          animation: blink 1s infinite;
+          z-index: 2;
+        }
+
+        .create-card-btn:hover {
+          color: red; /* Point color - 빨간색 */
+          /* text-shadow: 0 0 10px rgba(255, 0, 0, 0.3); */
+        }
+
+        .create-card-btn.hovered {
+          color: red;
+        }
+
+        .create-card-btn:hover {
+          animation: none;
+          color: red;
+        }
+      }
+    }
+  }
+}
+
+

@@ -1,0 +1,23 @@
+{
+  "name": "drawing-test",
+  "version": "1.0.0",
+  "description": "This project demonstrates how to draw on a material using a brush in Three.js. The changes are reflected in real-time on a 3D model.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "three": "^0.182.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.4",
+    "vite": "^7.3.1"
+  }
+}

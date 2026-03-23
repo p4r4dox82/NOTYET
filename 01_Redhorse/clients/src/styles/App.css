@@ -1,23 +1,4 @@
-
-/* Responsive */
-/* @media (max-width: 1024px) {
-  .twitter-post-container {
-    height: auto;
-    aspect-ratio: 16 / 9;
-  }
-
-  .create-card-btn {
-    font-size: 20px;
-  }
-
-  .text-rotated:not(.text-small) {
-    font-size: 40px;
-  }
-
-  .text-rotated.text-small {
-    font-size: 16px;
-  }
-} */
+@import url('./Font.css');
 
 #root {
   max-width: 100%;
@@ -26,14 +7,38 @@
   height: 100vh;
 }
 
-.layout_container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: center;
-    padding-top: 30px;
-  }
+/* Twitter Post Container */
+.main_container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+}
+
+/* Background Image */
+.bg-image {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bg-image img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+input {
+  padding-top: 0px;
+  padding-bottom: 0px;
+  text-align: end;
+}
+input:focus {outline: none;}

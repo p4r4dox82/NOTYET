@@ -1,0 +1,19 @@
+.logo_container_main {
+    position: absolute;
+    left: calc(45/1925*100%);
+    bottom: calc(40.57/1080*100%);
+    width: calc(200.3/1925*100%);
+    aspect-ratio: calc(200.3/92.53);
+    .logo_background {
+        position: relative;
+        z-index: 1;
+    }
+    .logo {
+        width: 100%;
+        height: 100%;
+        img {
+            width: 100%;
+            height: 100%;
+        }
+    }
+}
