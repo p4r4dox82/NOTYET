@@ -1,15 +1,28 @@
 import resultPageStyles from '../styles/ResultPage.module.scss'
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
+import { addLoadingStatusCallback, removeLoadingStatusCallback, getLoadingStatus } from '../utils/texturePreloader'
 
 function RenderingInputPage({ onSubmit }) {
   const [senderName, setSenderName] = useState('')
   const [isHovered, setIsHovered] = useState(false)
+  const [texturesLoading, setTexturesLoading] = useState(() => getLoadingStatus().isLoading)
+
+  useEffect(() => {
+    const handleLoadingStatusChange = (status) => {
+      setTexturesLoading(status.isLoading)
+    }
+
+    addLoadingStatusCallback(handleLoadingStatusChange)
+    return () => removeLoadingStatusCallback(handleLoadingStatusChange)
+  }, [])
 
   const handleNameChange = useCallback((e) => {
     setSenderName(e.target.value)
   }, [])
 
   const handleStartRendering = useCallback(() => {
+    if (texturesLoading) return
+
     // 재생 중인 사운드 종료
     if (window.renderingAudio) {
       window.renderingAudio.pause()
@@ -17,9 +30,12 @@ function RenderingInputPage({ onSubmit }) {
       window.renderingAudio = null
     }
     onSubmit(senderName)
-  }, [senderName, onSubmit])
+  }, [senderName, onSubmit, texturesLoading])
 
-  const handleMouseEnter = useCallback(() => setIsHovered(true), [])
+  const handleMouseEnter = useCallback(() => {
+    if (!texturesLoading) setIsHovered(true)
+  }, [texturesLoading])
+
   const handleMouseLeave = useCallback(() => setIsHovered(false), [])
 
   return (
@@ -34,10 +50,11 @@ function RenderingInputPage({ onSubmit }) {
               onChange={handleNameChange}
             />
             <div
-              className={`${resultPageStyles.result_btn} ${isHovered ? resultPageStyles.hovered : ''}`}
+              className={`${resultPageStyles.result_btn} ${isHovered && !texturesLoading ? resultPageStyles.hovered : ''}`}
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
               onClick={handleStartRendering}
+              style={{ cursor: texturesLoading ? 'not-allowed' : 'pointer' }}
             >
               <>Here's my name</>
             </div>
