@@ -56,7 +56,7 @@ function RenderingInputPage({ onSubmit }) {
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
               onClick={handleStartRendering}
-              style={{ cursor: texturesLoading ? 'not-allowed' : 'pointer' }}
+              // style={{ cursor: texturesLoading ? 'not-allowed' : 'pointer' }}
             >
               <>Here's my name</>
             </div>
