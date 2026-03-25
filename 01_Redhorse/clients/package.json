@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "serve -s dist",
+    "start": "sirv dist --single",
     "heroku-postbuild": "vite build"
   },
   "dependencies": {
@@ -16,7 +16,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.13.0",
-    "serve": "^14.2.6",
+    "sirv-cli": "^3.0.1",
     "three": "^0.183.2"
   },
   "devDependencies": {
