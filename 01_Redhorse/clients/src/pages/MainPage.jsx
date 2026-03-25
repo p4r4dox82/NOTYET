@@ -38,7 +38,7 @@ function MainPage() {
             <div className={mainPageStyles.text_container}>
               <div className={mainPageStyles.main_text}>Make own happy new year invitation</div>
               <div className={mainPageStyles.sub_text_container}>
-                <div className={mainPageStyles.production}>by. office notyet</div>
+                <div className={mainPageStyles.production}></div>
                 <div className={mainPageStyles.instruction_container}>
                   <div className={mainPageStyles.instruction}>
                     <div>No spam. Just New</div>

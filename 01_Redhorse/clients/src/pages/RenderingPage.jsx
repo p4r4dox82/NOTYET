@@ -17,7 +17,9 @@ function RenderingInputPage({ onSubmit }) {
   }, [])
 
   const handleNameChange = useCallback((e) => {
-    setSenderName(e.target.value)
+    // 한글 입력 제거 (영문, 숫자, 특수문자만 허용)
+    const value = e.target.value.replace(/[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/g, '')
+    setSenderName(value)
   }, [])
 
   const handleStartRendering = useCallback(() => {

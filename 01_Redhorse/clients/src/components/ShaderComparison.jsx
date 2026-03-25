@@ -6,16 +6,17 @@ import styles from '../styles/ShaderComparison.module.css';
  * 다양한 Shader를 렌더링하는 컴포넌트
  * @param {number} defaultMode - 기본 shaderMode (기본값: 1)
  * @param {boolean} showButtons - 모드 선택 버튼 표시 여부 (기본값: true)
+ * @param {Object} blurParams - Blur 파라미터 { filterSize: { blur4, blur6 }, uPreShrink: { blur4, blur6 } }
  */
-export const ShaderComparison = forwardRef(({ defaultMode = 1, showButtons = true }, ref) => {
+export const ShaderComparison = forwardRef(({ defaultMode = 1, showButtons = true, blurParams = null }, ref) => {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
   const allMaterialsRef = useRef({});
-  
+
   const [shaderMode, setShaderMode] = useState(defaultMode);
 
-  useShaderComparison(containerRef, canvasRef, overlayCanvasRef, shaderMode, allMaterialsRef);
+  useShaderComparison(containerRef, canvasRef, overlayCanvasRef, shaderMode, allMaterialsRef, blurParams);
 
   // 외부에서 shader parameters를 조절할 수 있도록 ref 노출
   useImperativeHandle(ref, () => ({

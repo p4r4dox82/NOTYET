@@ -28,6 +28,7 @@ if (import.meta.hot) {
  * Shader Mode에 따라 다양한 shader 렌더링하는 커스텀 훅
  * @param {number} shaderMode - 1: Noise, 2: Ramp, 3: CompAverage, 4: Blur, 5: CompMultiply
  * @param {React.MutableRefObject} allMaterialsRef - 외부에서 전달받은 allMaterialsRef (optional)
+ * @param {Object} blurParams - Blur 파라미터 { filterSize: { blur4, blur6 }, uPreShrink: { blur4, blur6 } }
  */
 export function useShaderComparison(
   containerRef,
@@ -35,6 +36,7 @@ export function useShaderComparison(
   overlayCanvasRef,
   shaderMode = 1,
   externalAllMaterialsRef = null,
+  blurParams = null,
 ) {
   const rendererRef = useRef(null);
   const composerRef = useRef(null);
@@ -166,30 +168,37 @@ export function useShaderComparison(
     const dummyScene = new THREE.Scene();
     const renderPass = new RenderPass(dummyScene, mainCamera); // 더미 씬으로 시작
     
+    // 기본 blur 파라미터
+    const defaultBlurParams = {
+      filterSize: { blur4: 32.0, blur6: 24.0 },
+      uPreShrink: { blur4: 6.0, blur6: 3.0 }
+    };
+    const finalBlurParams = blurParams || defaultBlurParams;
+
     // Shader 4용 블러 패스 (강한 블러)
     const blur4HPass = new ShaderPass(BlurShader);
     blur4HPass.uniforms.direction.value.set(1.0, 0.0);
-    blur4HPass.uniforms.filterSize.value = 32.0;
-    blur4HPass.uniforms.uPreShrink.value = 6.0;
+    blur4HPass.uniforms.filterSize.value = finalBlurParams.filterSize.blur4;
+    blur4HPass.uniforms.uPreShrink.value = finalBlurParams.uPreShrink.blur4;
     blur4HPass.uniforms.resolution.value.set(width, height);
 
     const blur4VPass = new ShaderPass(BlurShader);
     blur4VPass.uniforms.direction.value.set(0.0, 1.0);
-    blur4VPass.uniforms.filterSize.value = 32.0;
-    blur4VPass.uniforms.uPreShrink.value = 6.0;
+    blur4VPass.uniforms.filterSize.value = finalBlurParams.filterSize.blur4;
+    blur4VPass.uniforms.uPreShrink.value = finalBlurParams.uPreShrink.blur4;
     blur4VPass.uniforms.resolution.value.set(width, height);
 
     // Shader 6용 블러 패스 (약한 블러)
     const blur6HPass = new ShaderPass(BlurShader);
     blur6HPass.uniforms.direction.value.set(1.0, 0.0);
-    blur6HPass.uniforms.filterSize.value = 24.0;
-    blur6HPass.uniforms.uPreShrink.value = 3.0;
+    blur6HPass.uniforms.filterSize.value = finalBlurParams.filterSize.blur6;
+    blur6HPass.uniforms.uPreShrink.value = finalBlurParams.uPreShrink.blur6;
     blur6HPass.uniforms.resolution.value.set(width, height);
 
     const blur6VPass = new ShaderPass(BlurShader);
     blur6VPass.uniforms.direction.value.set(0.0, 1.0);
-    blur6VPass.uniforms.filterSize.value = 24.0;
-    blur6VPass.uniforms.uPreShrink.value = 3.0;
+    blur6VPass.uniforms.filterSize.value = finalBlurParams.filterSize.blur6;
+    blur6VPass.uniforms.uPreShrink.value = finalBlurParams.uPreShrink.blur6;
     blur6VPass.uniforms.resolution.value.set(width, height);
 
     // blur passes를 ref에 저장 (외부에서 uniform 조절용)
@@ -242,8 +251,8 @@ export function useShaderComparison(
         fragmentShader: BlurShader.fragmentShader,
     });
     blurFillHMaterial.uniforms.direction.value.set(1.0, 0.0);
-    blurFillHMaterial.uniforms.filterSize.value = 16.0;
-    blurFillHMaterial.uniforms.uPreShrink.value = 6.0;
+    blurFillHMaterial.uniforms.filterSize.value = finalBlurParams.filterSize.blur4;
+    blurFillHMaterial.uniforms.uPreShrink.value = finalBlurParams.uPreShrink.blur4;
     blurFillHMaterial.uniforms.resolution.value.set(width, height);
 
     const blurFillVMaterial = new THREE.ShaderMaterial({
@@ -252,8 +261,8 @@ export function useShaderComparison(
         fragmentShader: BlurShader.fragmentShader,
     });
     blurFillVMaterial.uniforms.direction.value.set(0.0, 1.0);
-    blurFillVMaterial.uniforms.filterSize.value = 16.0;
-    blurFillVMaterial.uniforms.uPreShrink.value = 6.0;
+    blurFillVMaterial.uniforms.filterSize.value = finalBlurParams.filterSize.blur4;
+    blurFillVMaterial.uniforms.uPreShrink.value = finalBlurParams.uPreShrink.blur4;
     blurFillVMaterial.uniforms.resolution.value.set(width, height);
 
     // Mode 7용 직접 블러 Material (약한 블러 - Line)
@@ -263,8 +272,8 @@ export function useShaderComparison(
         fragmentShader: BlurShader.fragmentShader,
     });
     blurLineHMaterial.uniforms.direction.value.set(1.0, 0.0);
-    blurLineHMaterial.uniforms.filterSize.value = 14.0;
-    blurLineHMaterial.uniforms.uPreShrink.value = 3.0;
+    blurLineHMaterial.uniforms.filterSize.value = finalBlurParams.filterSize.blur6;
+    blurLineHMaterial.uniforms.uPreShrink.value = finalBlurParams.uPreShrink.blur6;
     blurLineHMaterial.uniforms.resolution.value.set(width, height);
 
     const blurLineVMaterial = new THREE.ShaderMaterial({
@@ -273,8 +282,8 @@ export function useShaderComparison(
         fragmentShader: BlurShader.fragmentShader,
     });
     blurLineVMaterial.uniforms.direction.value.set(0.0, 1.0);
-    blurLineVMaterial.uniforms.filterSize.value = 14.0;
-    blurLineVMaterial.uniforms.uPreShrink.value = 3.0;
+    blurLineVMaterial.uniforms.filterSize.value = finalBlurParams.filterSize.blur6;
+    blurLineVMaterial.uniforms.uPreShrink.value = finalBlurParams.uPreShrink.blur6;
     blurLineVMaterial.uniforms.resolution.value.set(width, height);
 
     // Mode 7용 Multiply Material + Scene
@@ -626,7 +635,7 @@ export function useShaderComparison(
         handlersRef.current.handleMouseMove,
       );
     };
-  }, [shaderMode]);
+  }, [shaderMode, blurParams]);
 
   return {
     getRenderer() {
