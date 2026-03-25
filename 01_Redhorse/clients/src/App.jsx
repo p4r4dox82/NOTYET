@@ -1,10 +1,19 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
 import CreatingPage from './pages/CreatingPage'
 import MainPage from './pages/MainPage'
 import ResultPage from './pages/ResultPage'
 import ShaderComparison from './components/ShaderComparison'
 
 function App() {
+  useEffect(() => {
+    // Favicon 동적으로 설정
+    const link = document.querySelector("link[rel~='icon']")
+    if (link) {
+      link.href = '/images/logo_office_notyet.svg'
+    }
+  }, [])
+
   return (
     <BrowserRouter>
       <Routes>
