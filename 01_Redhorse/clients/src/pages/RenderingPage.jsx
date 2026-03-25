@@ -52,7 +52,7 @@ function RenderingInputPage({ onSubmit }) {
               onChange={handleNameChange}
             />
             <div
-              className={`${resultPageStyles.result_btn} ${isHovered && !texturesLoading ? resultPageStyles.hovered : ''}`}
+              className={`${resultPageStyles.result_btn} ${isHovered && texturesLoading ? resultPageStyles.hovered : ''}`}
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
               onClick={handleStartRendering}
