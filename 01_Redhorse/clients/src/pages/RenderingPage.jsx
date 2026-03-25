@@ -50,6 +50,7 @@ function RenderingInputPage({ onSubmit }) {
               className={resultPageStyles.input_box}
               value={senderName}
               onChange={handleNameChange}
+              autoComplete="off"
             />
             <div
               className={`${resultPageStyles.result_btn} ${isHovered && !texturesLoading ? resultPageStyles.hovered : ''}`}
